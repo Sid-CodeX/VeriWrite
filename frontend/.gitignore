@@ -1,0 +1,30 @@
+# Node.js dependencies
+node_modules/
+frontend/node_modules/
+backend/node_modules/
+
+# Production build directory
+frontend/build/
+backend/build/
+
+# Environment files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS-specific files
+.DS_Store
+
+# Coverage files (from testing frameworks)
+coverage/
+
+# IDE or Editor files
+.vscode/
+.idea/
