@@ -1,0 +1,14 @@
+{
+  "name": "veriwrite",
+  "version": "1.0.0",
+  "description": "Handwritten plagiarism detection tool",
+  "main": "index.js",
+  "scripts": {
+    "start": "concurrently \"npm start --prefix backend\" \"npm start --prefix frontend\"",
+    "frontend": "npm start --prefix frontend",
+    "backend": "npm start --prefix backend"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}
