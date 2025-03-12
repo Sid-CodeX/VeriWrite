@@ -1,62 +1,82 @@
-const express = require('express');
+const express = require("express");
+const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
+const User = require("../models/User");
 const router = express.Router();
-const bcrypt = require('bcrypt');
-const jwt = require('jsonwebtoken');
+const Document = require("../models/Document");
 
-// Import User model
-const User = require('../models/User');
+require("dotenv").config();
 
-// Sign-up endpoint
-router.post('/signup', async (req, res) => {
-  const { email, password, name, role, organization } = req.body;
+// User Signup
+router.post("/signup", async (req, res) => {
+    try {
+        const { name, email, password, role } = req.body;
 
-  try {
-    // Check if the user already exists
-    const existingUser = await User.findOne({ email });
-    if (existingUser) {
-      return res.status(400).json({ message: 'User already exists' });
+        // Check if email already exists
+        const existingUser = await User.findOne({ email });
+        if (existingUser) return res.status(400).json({ error: "Email already in use" });
+
+        // Hash password
+        const hashedPassword = await bcrypt.hash(password, 10);
+
+        // Create user
+        const newUser = new User({ name, email, password: hashedPassword, role });
+        await newUser.save();
+
+        res.status(201).json({ message: "User registered successfully!" });
+    } catch (error) {
+        res.status(500).json({ error: "Internal Server Error" });
     }
-
-    // Hash the password
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    // Create a new user
-    const user = new User({
-      email,
-      password: hashedPassword,
-      name,
-      role,
-      organization,
-    });
-
-    await user.save();
-
-    res.status(201).json({ message: 'User registered successfully' });
-  } catch (err) {
-    res.status(500).json({ message: 'Internal server error', error: err.message });
-  }
 });
 
-// Login endpoint
-router.post('/login', async (req, res) => {
-  const { email, password } = req.body;
+// User Login
+router.post("/login", async (req, res) => {
+    try {
+        const { email, password } = req.body;
 
-  try {
-    const user = await User.findOne({ email });
-    if (!user) {
-      return res.status(404).json({ message: 'User not found' });
+        // Check if email exists
+        const user = await User.findOne({ email });
+        if (!user) {
+            console.log("❌ User not found");
+            return res.status(400).json({ error: "Invalid credentials" });
+        }
+
+        // Compare passwords
+        const isMatch = await bcrypt.compare(password, user.password);
+        if (!isMatch) {
+            console.log("❌ Password does not match");
+            return res.status(400).json({ error: "Invalid credentials" });
+        }
+
+        // Generate JWT token
+        const token = jwt.sign(
+            { userId: user._id, role: user.role },
+            process.env.JWT_SECRET,
+            { expiresIn: "1d" }
+        );
+
+        console.log("✅ Login Successful");
+        res.status(200).json({ token, role: user.role });
+        
+    } catch (error) {
+        console.error("❌ Login Error:", error);  // <-- Logs the real error in console
+        res.status(500).json({ error: error.message });  // <-- Sends real error in response
     }
-
-    const isPasswordValid = await bcrypt.compare(password, user.password);
-    if (!isPasswordValid) {
-      return res.status(401).json({ message: 'Invalid credentials' });
-    }
-
-    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
-    res.status(200).json({ token, user });
-  } catch (err) {
-    res.status(500).json({ message: 'Internal server error', error: err.message });
-  }
 });
+
+const Document = require("../models/Document");
+
+router.post("/logout", async (req, res) => {
+    try {
+        const teacherId = req.body.teacherId;
+        await Document.deleteMany({ teacherId });
+        res.status(200).json({ message: "Logged out and documents deleted" });
+    } catch (error) {
+        console.error("Logout Error:", error);
+        res.status(500).json({ error: "Internal Server Error" });
+    }
+});
+
+
 
 module.exports = router;
