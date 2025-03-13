@@ -18,6 +18,8 @@ app.use(cors());
 // Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/upload", uploadRoutes); // Added upload endpoint
+app.use("/api/courses", require("./routes/courseRoutes"));
+app.use("/api/assignments", require("./routes/assignmentRoutes"));
 
 // Connect to MongoDB
 mongoose.connect(process.env.MONGO_URI, {

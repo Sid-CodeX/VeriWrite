@@ -1,0 +1,2670 @@
+/**
+ * Azure Cognitive Services [Form Recognizer](https://azure.microsoft.com/services/cognitive-services/form-recognizer/)
+ * uses cloud-based machine learning to extract structured data from form documents.
+ *
+ * @packageDocumentation
+ */
+
+/// <reference types="node" />
+
+import { AzureKeyCredential } from '@azure/core-auth';
+import { CommonClientOptions } from '@azure/core-client';
+import { KeyCredential } from '@azure/core-auth';
+import { OperationOptions } from '@azure/core-client';
+import { PagedAsyncIterableIterator } from '@azure/core-paging';
+import { PollerLike } from '@azure/core-lro';
+import { PollOperationState } from '@azure/core-lro';
+import { TokenCredential } from '@azure/core-auth';
+
+/** Address field value. */
+export declare interface AddressValue {
+    /** House or building number. */
+    houseNumber?: string;
+    /** Post office box number. */
+    poBox?: string;
+    /** Street name. */
+    road?: string;
+    /** Name of city, town, village, etc. */
+    city?: string;
+    /** First-level administrative division. */
+    state?: string;
+    /** Postal code used for mail sorting. */
+    postalCode?: string;
+    /** Country/region. */
+    countryRegion?: string;
+    /** Street-level address, excluding city, state, countryRegion, and postalCode. */
+    streetAddress?: string;
+    /** Apartment or office number */
+    unit?: string;
+    /** Districts or boroughs within a city, such as Brooklyn in New York City or City of Westminster in London. */
+    cityDistrict?: string;
+    /** Second-level administrative division used in certain locales. */
+    stateDistrict?: string;
+    /** Unofficial neighborhood name, like Chinatown. */
+    suburb?: string;
+    /** Build name, such as World Trade Center. */
+    house?: string;
+    /** Floor number, such as 3F. */
+    level?: string;
+}
+
+/**
+ * A long-running operation (poller) that tracks the state of an analysis operation, eventually producing the result
+ * type that corresponds to the model.
+ */
+export declare type AnalysisPoller<Result = AnalyzeResult<AnalyzedDocument>> = PollerLike<DocumentAnalysisPollOperationState<Result>, Result>;
+
+/**
+ * An extracted document object.
+ *
+ * An AnalyzedDocument is an instance of one of the document types within a model. Its fields correspond to the field
+ * schema of the document type.
+ */
+export declare interface AnalyzedDocument {
+    /**
+     * The type of the document that was extracted. A model can have multiple document types (for example, in a composed
+     * model), so this property indicates which document type the fields of this document correspond to.
+     */
+    docType: string;
+    /**
+     * The extracted fields, which correspond to the document type's field schema.
+     */
+    fields: {
+        [field: string]: DocumentField;
+    };
+    /**
+     * Bounding regions covering the document.
+     */
+    boundingRegions?: BoundingRegion[];
+    /**
+     * Locations of the document's elements in the `content` text (reading-order-concatenated content).
+     */
+    spans: DocumentSpan[];
+    /**
+     * The service's confidence that it has correctly extracted the document.
+     */
+    confidence: number;
+}
+
+/**
+ * Options for the document analysis operation.
+ */
+export declare interface AnalyzeDocumentOptions<Result = AnalyzeResult<AnalyzedDocument>> extends OperationOptions, PollerOptions<DocumentAnalysisPollOperationState<Result>> {
+    /**
+     * Locale hint for text recognition and document analysis.
+     *
+     * The value may specify only the two-letter language code or a BCP-47 language tag indicating both language and region.
+     *
+     * Examples:
+     * - "en-US" (US English)
+     * - "fr" (French - no region)
+     */
+    locale?: string;
+    /**
+     * A list of page ranges (1-indexed) within the input document to analyze, separated by commas
+     *
+     * Examples: "1", "3-5", "1,3-5"
+     */
+    pages?: string;
+    /**
+     * A list of features to enable in the model. Enabling features may incur additional costs, so be sure to consult the
+     * service documentation to understand the nature of the features and any added costs associated with using them.
+     *
+     * For more information about the features available in Form Recognizer, see the service documentation: https://aka.ms/azsdk/formrecognizer/features
+     */
+    features?: FormRecognizerFeature[];
+}
+
+/**
+ * The result of an analysis operation. The type of the Document may be determined by the model used to perform the
+ * analysis.
+ */
+export declare interface AnalyzeResult<Document = AnalyzedDocument> extends AnalyzeResultCommon {
+    /**
+     * Extracted pages.
+     */
+    pages?: DocumentPage[];
+    /**
+     * Extracted tables.
+     */
+    tables?: DocumentTable[];
+    /**
+     * Extracted key-value pairs.
+     */
+    keyValuePairs?: DocumentKeyValuePair[];
+    /**
+     * Extracted text languages.
+     */
+    languages?: DocumentLanguage[];
+    /**
+     * Extracted font styles.
+     */
+    styles?: DocumentStyle[];
+    /**
+     * Extracted documents (instances of any of the model's document types and corresponding field schemas).
+     */
+    documents?: Document[];
+    /**
+     * Extracted document paragraphs.
+     */
+    paragraphs?: DocumentParagraph[];
+}
+
+/**
+ * The common fields of all AnalyzeResult-like types, such as LayoutResult, ReadResult, and GeneralDocumentResult.
+ */
+export declare interface AnalyzeResultCommon {
+    /**
+     * The service API version used to produce this result.
+     */
+    apiVersion: string;
+    /**
+     * The unique ID of the model that was used to produce this result.
+     */
+    modelId: string;
+    /**
+     * A string representation of all textual and visual elements in the input, concatenated by reading order (the order
+     * in which the service "reads" or extracts the textual and visual content from the document).
+     */
+    content: string;
+}
+
+/** Defines values for AnalyzeResultOperationStatus. */
+export declare type AnalyzeResultOperationStatus = "notStarted" | "running" | "failed" | "succeeded";
+
+/**
+ * A training data source defined by an Azure Blob Container and a JSONL file list within the container.
+ */
+export declare interface AzureBlobFileListSource {
+    /**
+     * The underlying details of the Azure Blob File List Source.
+     */
+    azureBlobFileListSource: AzureBlobFileListSourceDetails;
+    /**
+     * Must be undefined for a Blob File List Source.
+     */
+    azureBlobSource?: undefined;
+}
+
+/** File list in Azure Blob Storage. */
+export declare interface AzureBlobFileListSourceDetails {
+    /** Azure Blob Storage container URL. */
+    containerUrl: string;
+    /** Path to a JSONL file within the container specifying a subset of documents for training. */
+    fileList: string;
+}
+
+/**
+ * A training data source defined by an Azure Blob Container.
+ */
+export declare interface AzureBlobSource {
+    /**
+     * The underlying details of the Azure Blob Source.
+     */
+    azureBlobSource: AzureBlobSourceDetails;
+    /**
+     * Must be undefined for a Blob Source.
+     */
+    azureBlobFileListSource?: undefined;
+}
+
+/** Azure Blob Storage content. */
+export declare interface AzureBlobSourceDetails {
+    /** Azure Blob Storage container URL. */
+    containerUrl: string;
+    /** Blob name prefix. */
+    prefix?: string;
+}
+
+export { AzureKeyCredential }
+
+/**
+ * Options for the document classifier build operation.
+ */
+export declare interface BeginBuildDocumentClassifierOptions extends OperationOptions, PollerOptions<DocumentClassifierOperationState> {
+    /**
+     * A textual description of the classifier (can be any text).
+     */
+    description?: string;
+}
+
+/**
+ * Options for the model build operation.
+ */
+export declare interface BeginBuildDocumentModelOptions extends CreateDocumentModelOptions {
+}
+
+/**
+ * Options for the model compose operation.
+ */
+export declare interface BeginComposeDocumentModelOptions extends CreateDocumentModelOptions {
+}
+
+/**
+ * Options for the copy model operation.
+ */
+export declare interface BeginCopyModelOptions extends OperationOptions, PollerOptions<DocumentModelOperationState> {
+}
+
+/** Bounding polygon on a specific page of the input. */
+export declare interface BoundingRegion extends HasBoundingPolygon {
+    /** 1-based page number of page containing the bounding region. */
+    pageNumber: number;
+}
+
+/** Classifier document type info. */
+export declare interface ClassifierDocumentTypeDetails {
+    /** Azure Blob Storage location containing the training data for a classifier document type.  Either azureBlobSource or azureBlobFileListSource must be specified. */
+    azureBlobSource?: AzureBlobSourceDetails;
+    /** Azure Blob Storage file list specifying the training data for a classifier document type.  Either azureBlobSource or azureBlobFileListSource must be specified. */
+    azureBlobFileListSource?: AzureBlobFileListSourceDetails;
+}
+
+/**
+ * Options for the document classification operation.
+ */
+export declare interface ClassifyDocumentOptions extends OperationOptions, PollerOptions<DocumentAnalysisPollOperationState> {
+}
+
+/**
+ * Options common to all operations that define new models, such as `beginBuildDocumentModel`,
+ * `beginComposeDocumentModel`, and `getCopyAuthorization`.
+ */
+export declare interface CommonModelCreationOptions {
+    /**
+     * A textual description of the model (can be any text).
+     */
+    description?: string;
+    /**
+     * Additional, user-specified key-value pairs to associate with the model as persistent metadata.
+     */
+    tags?: Record<string, string>;
+}
+
+/** Authorization to copy a document model to the specified target resource and modelId. */
+export declare interface CopyAuthorization {
+    /** ID of the target Azure resource where the document model should be copied to. */
+    targetResourceId: string;
+    /** Location of the target Azure resource where the document model should be copied to. */
+    targetResourceRegion: string;
+    /** Identifier of the target document model. */
+    targetModelId: string;
+    /** URL of the copied document model in the target account. */
+    targetModelLocation: string;
+    /** Token used to authorize the request. */
+    accessToken: string;
+    /** Date/time when the access token expires. */
+    expirationDateTime: Date;
+}
+
+/**
+ * Options for the model creation operation.
+ */
+export declare interface CreateDocumentModelOptions extends OperationOptions, CommonModelCreationOptions, PollerOptions<DocumentModelOperationState> {
+}
+
+/**
+ * Create a DocumentModel that performs analysis using the given schema.
+ *
+ * The types of `documents` are created from the schema, so they are `unknown` unless they are asserted to be a
+ * different type.
+ *
+ * @hidden
+ * @param schema - model schema contents
+ * @returns - a DocumentModel that encodes the schema
+ */
+export declare function createModelFromSchema(schema: Omit<DocumentModelDetails, "createdOn">): DocumentModel<AnalyzeResult<unknown>>;
+
+/** Currency field value. */
+export declare interface CurrencyValue {
+    /** Currency amount. */
+    amount: number;
+    /** Currency symbol label, if any. */
+    currencySymbol?: string;
+    /** Resolved currency code (ISO 4217), if any. */
+    currencyCode?: string;
+}
+
+/** Details regarding custom document models. */
+export declare interface CustomDocumentModelsDetails {
+    /** Number of custom document models in the current resource. */
+    count: number;
+    /** Maximum number of custom document models supported in the current resource. */
+    limit: number;
+}
+
+/**
+ * Options for model deletion.
+ */
+export declare interface DeleteDocumentModelOptions extends OperationOptions {
+}
+
+/**
+ * A document field that describes a structured physical address.
+ */
+export declare interface DocumentAddressField extends DocumentFieldCommon {
+    /** Field kind: "address". */
+    kind: "address";
+    /**
+     * The properties of the extracted address.
+     */
+    value?: AddressValue;
+}
+
+/**
+ * A client for interacting with the Form Recognizer service's analysis features.
+ *
+ * ### Examples:
+ *
+ * The Form Recognizer service and clients support two means of authentication:
+ *
+ * #### Azure Active Directory
+ *
+ * ```javascript
+ * import { DocumentAnalysisClient } from "@azure/ai-form-recognizer";
+ * import { DefaultAzureCredential } from "@azure/identity";
+ *
+ * const endpoint = "https://<resource name>.cognitiveservices.azure.com";
+ * const credential = new DefaultAzureCredential();
+ *
+ * const client = new DocumentAnalysisClient(endpoint, credential);
+ * ```
+ *
+ * #### API Key (Subscription Key)
+ *
+ * ```javascript
+ * import { DocumentAnalysisClient, AzureKeyCredential } from "@azure/ai-form-recognizer";
+ *
+ * const endpoint = "https://<resource name>.cognitiveservices.azure.com";
+ * const credential = new AzureKeyCredential("<api key>");
+ *
+ * const client = new DocumentAnalysisClient(endpoint, credential);
+ * ```
+ */
+export declare class DocumentAnalysisClient {
+    private _restClient;
+    private _tracing;
+    /**
+     * Create a `DocumentAnalysisClient` instance from a resource endpoint and a an Azure Identity `TokenCredential`.
+     *
+     * See the [`@azure/identity`](https://npmjs.com/package/\@azure/identity) package for more information about
+     * authenticating with Azure Active Directory.
+     *
+     * ### Example:
+     *
+     * ```javascript
+     * import { DocumentAnalysisClient } from "@azure/ai-form-recognizer";
+     * import { DefaultAzureCredential } from "@azure/identity";
+     *
+     * const endpoint = "https://<resource name>.cognitiveservices.azure.com";
+     * const credential = new DefaultAzureCredential();
+     *
+     * const client = new DocumentAnalysisClient(endpoint, credential);
+     * ```
+     *
+     * @param endpoint - the endpoint URL of an Azure Cognitive Services instance
+     * @param credential - a TokenCredential instance from the `@azure/identity` package
+     * @param options - optional settings for configuring all methods in the client
+     */
+    constructor(endpoint: string, credential: TokenCredential, options?: DocumentAnalysisClientOptions);
+    /**
+     * Create a `DocumentAnalysisClient` instance from a resource endpoint and a static API key (`KeyCredential`),
+     *
+     * ### Example:
+     *
+     * ```javascript
+     * import { DocumentAnalysisClient, AzureKeyCredential } from "@azure/ai-form-recognizer";
+     *
+     * const endpoint = "https://<resource name>.cognitiveservices.azure.com";
+     * const credential = new AzureKeyCredential("<api key>");
+     *
+     * const client = new DocumentAnalysisClient(endpoint, credential);
+     * ```
+     *
+     * @param endpoint - the endpoint URL of an Azure Cognitive Services instance
+     * @param credential - a KeyCredential containing the Cognitive Services instance subscription key
+     * @param options - optional settings for configuring all methods in the client
+     */
+    constructor(endpoint: string, credential: KeyCredential, options?: DocumentAnalysisClientOptions);
+    /**
+     * @hidden
+     */
+    constructor(endpoint: string, credential: KeyCredential | TokenCredential, options?: DocumentAnalysisClientOptions);
+    /**
+     * Extract data from an input using a model given by its unique ID.
+     *
+     * This operation supports custom as well as prebuilt models. For example, to use the prebuilt invoice model, provide
+     * the model ID "prebuilt-invoice", or to use the simpler prebuilt layout model, provide the model ID
+     * "prebuilt-layout".
+     *
+     * The fields produced in the `AnalyzeResult` depend on the model that is used for analysis, and the values in any
+     * extracted documents' fields depend on the document types in the model (if any) and their corresponding field
+     * schemas.
+     *
+     * ### Examples
+     *
+     * This method supports streamable request bodies ({@link FormRecognizerRequestBody}) such as Node.JS `ReadableStream`
+     * objects, browser `Blob`s, and `ArrayBuffer`s. The contents of the body will be uploaded to the service for analysis.
+     *
+     * ```javascript
+     * import * as fs from "fs";
+     *
+     * const file = fs.createReadStream("path/to/receipt.pdf");
+     *
+     * // The model that is passed to the following function call determines the type of the eventual result. In the
+     * // example, we will use the prebuilt receipt model, but you could use a custom model ID/name instead.
+     * const poller = await client.beginAnalyzeDocument("prebuilt-receipt", file);
+     *
+     * // The result is a long-running operation (poller), which must itself be polled until the operation completes
+     * const {
+     *   pages, // pages extracted from the document, which contain lines and words
+     *   tables, // extracted tables, organized into cells that contain their contents
+     *   styles, // text styles (ex. handwriting) that were observed in the document
+     *   keyValuePairs, // extracted pairs of elements  (directed associations from one element in the input to another)
+     *   entities, // extracted entities in the input's content, which are categorized (ex. "Location" or "Organization")
+     *   documents // extracted documents (instances of one of the model's document types and its field schema)
+     * } = await poller.pollUntilDone();
+     *
+     * // Extract the fields of the first document. These fields constitute a receipt, because we used the receipt model
+     * const [{ fields: receipt }] = documents;
+     *
+     * // The fields correspond to the model's document types and their field schemas. Refer to the Form Recognizer
+     * // documentation for information about the document types and field schemas within a model, or use the `getModel`
+     * // operation to view this information programmatically.
+     * console.log("The type of this receipt is:", receipt?.["ReceiptType"]?.value);
+     * ```
+     *
+     *
+     * @param modelId - the unique ID (name) of the model within this client's resource
+     * @param document - a {@link FormRecognizerRequestBody} that will be uploaded with the request
+     * @param options - optional settings for the analysis operation and poller
+     * @returns a long-running operation (poller) that will eventually produce an `AnalyzeResult`
+     */
+    beginAnalyzeDocument(modelId: string, document: FormRecognizerRequestBody, options?: AnalyzeDocumentOptions): Promise<AnalysisPoller>;
+    /**
+     * Extract data from an input using a model that has a known, strongly-typed document schema (a {@link DocumentModel}).
+     *
+     * The fields produced in the `AnalyzeResult` depend on the model that is used for analysis. In TypeScript, the type
+     * of the result for this method overload is inferred from the type of the input `DocumentModel`.
+     *
+     * ### Examples
+     *
+     * This method supports streamable request bodies ({@link FormRecognizerRequestBody}) such as Node.JS `ReadableStream`
+     * objects, browser `Blob`s, and `ArrayBuffer`s. The contents of the body will be uploaded to the service for analysis.
+     *
+     * If the input provided is a string, it will be treated as a URL to the location of a document to be analyzed. See the
+     * {@link beginAnalyzeDocumentFromUrl} method for more information. Use of that method is preferred when using URLs,
+     * and URL support is only provided in this method for backwards compatibility.
+     *
+     * ```typescript
+     * import * as fs from "fs";
+     *
+     * // See the `prebuilt` folder in the SDK samples (http://aka.ms/azsdk/formrecognizer/js/samples) for examples of
+     * // DocumentModels for known prebuilts.
+     * import { PrebuiltReceiptModel } from "./prebuilt-receipt.ts";
+     *
+     * const file = fs.createReadStream("path/to/receipt.pdf");
+     *
+     * // The model that is passed to the following function call determines the type of the eventual result. In the
+     * // example, we will use the prebuilt receipt model.
+     * const poller = await client.beginAnalyzeDocument(PrebuiltReceiptModel, file);
+     *
+     * // The result is a long-running operation (poller), which must itself be polled until the operation completes
+     * const {
+     *   pages, // pages extracted from the document, which contain lines and words
+     *   tables, // extracted tables, organized into cells that contain their contents
+     *   styles, // text styles (ex. handwriting) that were observed in the document
+     *   keyValuePairs, // extracted pairs of elements  (directed associations from one element in the input to another)
+     *
+     *   documents // extracted documents (instances of one of the model's document types and its field schema)
+     * } = await poller.pollUntilDone();
+     *
+     * // Extract the fields of the first document. These fields constitute a receipt, because we used the receipt model
+     * const [{ fields: receipt }] = documents;
+     *
+     * // Since we used the strongly-typed PrebuiltReceiptModel object instead of the "prebuilt-receipt" model ID
+     * // string, the fields of the receipt are strongly-typed and have camelCase names (as opposed to PascalCase).
+     * console.log("The type of this receipt is:", receipt.receiptType?.value);
+     * ```
+     *
+     * @param model - a {@link DocumentModel} representing the model to use for analysis and the expected output type
+     * @param document - a {@link FormRecognizerRequestBody} that will be uploaded with the request
+     * @param options - optional settings for the analysis operation and poller
+     * @returns a long-running operation (poller) that will eventually produce an `AnalyzeResult` with documents that have
+     *          the result type associated with the input model
+     */
+    beginAnalyzeDocument<Result>(model: DocumentModel<Result>, document: FormRecognizerRequestBody, options?: AnalyzeDocumentOptions<Result>): Promise<AnalysisPoller<Result>>;
+    /**
+     * Extract data from an input using a model given by its unique ID.
+     *
+     * This operation supports custom as well as prebuilt models. For example, to use the prebuilt invoice model, provide
+     * the model ID "prebuilt-invoice", or to use the simpler prebuilt layout model, provide the model ID
+     * "prebuilt-layout".
+     *
+     * The fields produced in the `AnalyzeResult` depend on the model that is used for analysis, and the values in any
+     * extracted documents' fields depend on the document types in the model (if any) and their corresponding field
+     * schemas.
+     *
+     * ### Examples
+     *
+     * This method supports extracting data from a file at a given URL. The Form Recognizer service will attempt to
+     * download a file using the submitted URL, so the URL must be accessible from the public internet. For example, a SAS
+     * token can be used to grant read access to a blob in Azure Storage, and the service will use the SAS-encoded URL to
+     * request the file.
+     *
+     * ```javascript
+     * // the URL must be publicly accessible
+     * const url = "<receipt document url>";
+     *
+     * // The model that is passed to the following function call determines the type of the eventual result. In the
+     * // example, we will use the prebuilt receipt model, but you could use a custom model ID/name instead.
+     * const poller = await client.beginAnalyzeDocument("prebuilt-receipt", url);
+     *
+     * // The result is a long-running operation (poller), which must itself be polled until the operation completes
+     * const {
+     *   pages, // pages extracted from the document, which contain lines and words
+     *   tables, // extracted tables, organized into cells that contain their contents
+     *   styles, // text styles (ex. handwriting) that were observed in the document
+     *   keyValuePairs, // extracted pairs of elements  (directed associations from one element in the input to another)
+     *
+     *   documents // extracted documents (instances of one of the model's document types and its field schema)
+     * } = await poller.pollUntilDone();
+     *
+     * // Extract the fields of the first document. These fields constitute a receipt, because we used the receipt model
+     * const [{ fields: receipt }] = documents;
+     *
+     * // The fields correspond to the model's document types and their field schemas. Refer to the Form Recognizer
+     * // documentation for information about the document types and field schemas within a model, or use the `getModel`
+     * // operation to view this information programmatically.
+     * console.log("The type of this receipt is:", receipt?.["ReceiptType"]?.value);
+     * ```
+     *
+     * @param modelId - the unique ID (name) of the model within this client's resource
+     * @param documentUrl - a URL (string) to an input document accessible from the public internet
+     * @param options - optional settings for the analysis operation and poller
+     * @returns a long-running operation (poller) that will eventually produce an `AnalyzeResult`
+     */
+    beginAnalyzeDocumentFromUrl(modelId: string, documentUrl: string, options?: AnalyzeDocumentOptions): Promise<AnalysisPoller>;
+    /**
+     * Extract data from an input using a model that has a known, strongly-typed document schema (a {@link DocumentModel}).
+     *
+     * The fields produced in the `AnalyzeResult` depend on the model that is used for analysis. In TypeScript, the type
+     * of the result for this method overload is inferred from the type of the input `DocumentModel`.
+     *
+     * ### Examples
+     *
+     * This method supports extracting data from a file at a given URL. The Form Recognizer service will attempt to
+     * download a file using the submitted URL, so the URL must be accessible from the public internet. For example, a SAS
+     * token can be used to grant read access to a blob in Azure Storage, and the service will use the SAS-encoded URL to
+     * request the file.
+     *
+     * ```typescript
+     * // See the `prebuilt` folder in the SDK samples (http://aka.ms/azsdk/formrecognizer/js/samples) for examples of
+     * // DocumentModels for known prebuilts.
+     * import { PrebuiltReceiptModel } from "./prebuilt-receipt.ts";
+     *
+     * // the URL must be publicly accessible
+     * const url = "<receipt document url>";
+     *
+     * // The model that is passed to the following function call determines the type of the eventual result. In the
+     * // example, we will use the prebuilt receipt model.
+     * const poller = await client.beginAnalyzeDocument(PrebuiltReceiptModel, url);
+     *
+     * // The result is a long-running operation (poller), which must itself be polled until the operation completes
+     * const {
+     *   pages, // pages extracted from the document, which contain lines and words
+     *   tables, // extracted tables, organized into cells that contain their contents
+     *   styles, // text styles (ex. handwriting) that were observed in the document
+     *   keyValuePairs, // extracted pairs of elements  (directed associations from one element in the input to another)
+     *
+     *   documents // extracted documents (instances of one of the model's document types and its field schema)
+     * } = await poller.pollUntilDone();
+     *
+     * // Extract the fields of the first document. These fields constitute a receipt, because we used the receipt model
+     * const [{ fields: receipt }] = documents;
+     *
+     * // Since we used the strongly-typed PrebuiltReceiptModel object instead of the "prebuilt-receipt" model ID
+     * // string, the fields of the receipt are strongly-typed and have camelCase names (as opposed to PascalCase).
+     * console.log("The type of this receipt is:", receipt.receiptType?.value);
+     * ```
+     *
+     * @param model - a {@link DocumentModel} representing the model to use for analysis and the expected output type
+     * @param documentUrl - a URL (string) to an input document accessible from the public internet
+     * @param options - optional settings for the analysis operation and poller
+     * @returns a long-running operation (poller) that will eventually produce an `AnalyzeResult`
+     */
+    beginAnalyzeDocumentFromUrl<Result>(model: DocumentModel<Result>, documentUrl: string, options?: AnalyzeDocumentOptions<Result>): Promise<AnalysisPoller<Result>>;
+    /**
+     * A helper method for running analysis polymorphically.
+     *
+     * @param model - the model ID or DocumentModel to use for analysis
+     * @param input - the string URL or request body to use
+     * @param options - analysis options
+     * @returns - an analysis poller
+     */
+    private analyze;
+    /**
+     * Classify a document using a custom classifier given by its ID.
+     *
+     * This method produces a long-running operation (poller) that will eventually produce an `AnalyzeResult`. This is the
+     * same type as `beginAnalyzeDocument` and `beginAnalyzeDocumentFromUrl`, but the result will only contain a small
+     * subset of its fields. Only the `documents` field and `pages` field will be populated, and only minimal page
+     * information will be returned. The `documents` field will contain information about all the identified documents and
+     * the `docType` that they were classified as.
+     *
+     * ### Example
+     *
+     * This method supports streamable request bodies ({@link FormRecognizerRequestBody}) such as Node.JS `ReadableStream`
+     * objects, browser `Blob`s, and `ArrayBuffer`s. The contents of the body will be uploaded to the service for analysis.
+     *
+     * ```typescript
+     * import * as fs from "fs";
+     *
+     * const file = fs.createReadStream("path/to/file.pdf");
+     *
+     * const poller = await client.beginClassifyDocument("<classifier ID>", file);
+     *
+     * // The result is a long-running operation (poller), which must itself be polled until the operation completes
+     * const {
+     *   pages, // pages extracted from the document, which contain only basic information for classifiers
+     *   documents // extracted documents and their types
+     * } = await poller.pollUntilDone();
+     *
+     * // We'll print the documents and their types
+     * for (const { docType } of documents) {
+     *   console.log("The type of this document is:", docType);
+     * }
+     * ```
+     *
+     * @param classifierId - the ID of the custom classifier to use for analysis
+     * @param document - the document to classify
+     * @param options - options for the classification operation
+     * @returns a long-running operation (poller) that will eventually produce an `AnalyzeResult`
+     */
+    beginClassifyDocument(classifierId: string, document: FormRecognizerRequestBody, options?: ClassifyDocumentOptions): Promise<AnalysisPoller>;
+    /**
+     * Classify a document from a URL using a custom classifier given by its ID.
+     *
+     * This method produces a long-running operation (poller) that will eventually produce an `AnalyzeResult`. This is the
+     * same type as `beginAnalyzeDocument` and `beginAnalyzeDocumentFromUrl`, but the result will only contain a small
+     * subset of its fields. Only the `documents` field and `pages` field will be populated, and only minimal page
+     * information will be returned. The `documents` field will contain information about all the identified documents and
+     * the `docType` that they were classified as.
+     *
+     * ### Example
+     *
+     * This method supports extracting data from a file at a given URL. The Form Recognizer service will attempt to
+     * download a file using the submitted URL, so the URL must be accessible from the public internet. For example, a SAS
+     * token can be used to grant read access to a blob in Azure Storage, and the service will use the SAS-encoded URL to
+     * request the file.
+     *
+     * ```typescript
+     * // the URL must be publicly accessible
+     * const url = "<file url>";
+     *
+     * const poller = await client.beginClassifyDocument("<classifier ID>", url);
+     *
+     * // The result is a long-running operation (poller), which must itself be polled until the operation completes
+     * const {
+     *   pages, // pages extracted from the document, which contain only basic information for classifiers
+     *   documents // extracted documents and their types
+     * } = await poller.pollUntilDone();
+     *
+     * // We'll print the documents and their types
+     * for (const { docType } of documents) {
+     *   console.log("The type of this document is:", docType);
+     * }
+     * ```
+     * @param classifierId - the ID of the custom classifier to use for analysis
+     * @param documentUrl - the URL of the document to classify
+     * @param options -
+     * @returns
+     */
+    beginClassifyDocumentFromUrl(classifierId: string, documentUrl: string, options?: ClassifyDocumentOptions): Promise<AnalysisPoller>;
+    /**
+     * A helper method for running classification polymorphically.
+     * @param classifierId - the ID of the classifier to use
+     * @param input - the string URL or request body to use
+     * @param options - analysis options
+     * @returns an analysis poller
+     */
+    private classify;
+    /**
+     * Create an LRO poller that handles analysis operations.
+     *
+     * This is the meat of all analysis polling operations.
+     *
+     * @param startOperation - function that starts the operation and returns the operation location
+     * @param definition - operation definition (initial model ID, operation transforms, request options)
+     * @returns - an analysis poller that produces the given return types according to the operation spec
+     */
+    private createUnifiedPoller;
+}
+
+/**
+ * Configurable options for DocumentAnalysisClient.
+ */
+export declare interface DocumentAnalysisClientOptions extends CommonClientOptions {
+    /**
+     * The unit of string offset/length values that the service returns.
+     *
+     * In JavaScript, strings are indexed by UTF-16 code units. Do _NOT_ set this value unless you are certain you need
+     * Unicode code-point units instead.
+     *
+     * Default: "utf16CodeUnit"
+     */
+    stringIndexType?: StringIndexType;
+}
+
+/**
+ * The state of an analysis operation, which will eventually produce the result type that corresponds to the model.
+ */
+export declare interface DocumentAnalysisPollOperationState<Result = AnalyzeResult<AnalyzedDocument>> extends PollOperationState<Result> {
+    /**
+     * The status of the operation. One of:
+     *
+     * - "notStarted"
+     * - "running"
+     * - "succeeded"
+     * - "failed"
+     */
+    status: AnalyzeResultOperationStatus;
+    /**
+     * The model ID that the analysis operation will use to produce the result.
+     */
+    modelId: string;
+    /**
+     * The URL to the operation.
+     */
+    operationLocation: string;
+    /**
+     * The Date and Time that the operation was created.
+     */
+    createdOn: Date;
+    /**
+     * The date & time that the operation state was last modified.
+     */
+    lastUpdatedOn: Date;
+}
+
+/**
+ * A visual annotation element in the document, such as a check mark or cross.
+ */
+export declare interface DocumentAnnotation extends HasBoundingPolygon {
+    /** Confidence of correctly extracting the annotation. */
+    confidence: number;
+}
+
+/**
+ * A DocumentField that consists of an array of nested fields. All fields in the array will have the same type.
+ */
+export declare interface DocumentArrayField<T = DocumentField> extends DocumentFieldCommon {
+    /** Field kind: "array". */
+    kind: "array";
+    /**
+     * The extracted members of the array field.
+     */
+    values: T[];
+}
+
+/**
+ * An extracted barcode.
+ */
+export declare interface DocumentBarcode extends HasBoundingPolygon {
+    /**
+     * The type of barcode that was extracted. See the `DocumentBarcodeKind` type for a list of possible values.
+     */
+    kind: DocumentBarcodeKind;
+    /** The encoded data in the barcode. */
+    value: string;
+    /** The location of the barcode in the reading-order concatenated `content`. */
+    span: DocumentSpan;
+    /** Confidence of correctly extracting the barcode. */
+    confidence: number;
+}
+
+/**
+ * Defines values for DocumentBarcodeKind. \
+ * {@link KnownDocumentBarcodeKind} can be used interchangeably with DocumentBarcodeKind,
+ *  this enum contains the known values that the service supports.
+ * ### Known values supported by the service
+ * **QRCode**: QR code, as defined in ISO\/IEC 18004:2015. \
+ * **PDF417**: PDF417, as defined in ISO 15438. \
+ * **UPCA**: GS1 12-digit Universal Product Code. \
+ * **UPCE**: GS1 6-digit Universal Product Code. \
+ * **Code39**: Code 39 barcode, as defined in ISO\/IEC 16388:2007. \
+ * **Code128**: Code 128 barcode, as defined in ISO\/IEC 15417:2007. \
+ * **EAN8**: GS1 8-digit International Article Number (European Article Number). \
+ * **EAN13**: GS1 13-digit International Article Number (European Article Number). \
+ * **DataBar**: GS1 DataBar barcode. \
+ * **Code93**: Code 93 barcode, as defined in ANSI\/AIM BC5-1995. \
+ * **Codabar**: Codabar barcode, as defined in ANSI\/AIM BC3-1995. \
+ * **DataBarExpanded**: GS1 DataBar Expanded barcode. \
+ * **ITF**: Interleaved 2 of 5 barcode, as defined in ANSI\/AIM BC2-1995. \
+ * **MicroQRCode**: Micro QR code, as defined in ISO\/IEC 23941:2022. \
+ * **Aztec**: Aztec code, as defined in ISO\/IEC 24778:2008. \
+ * **DataMatrix**: Data matrix code, as defined in ISO\/IEC 16022:2006. \
+ * **MaxiCode**: MaxiCode, as defined in ISO\/IEC 16023:2000.
+ */
+export declare type DocumentBarcodeKind = string;
+
+/**
+ * A DocumentField that has a boolean value.
+ */
+export declare interface DocumentBooleanField extends DocumentValueField<boolean> {
+    /** Field kind: "boolean". */
+    kind: "boolean";
+}
+
+/**
+ * Defines values for DocumentBuildMode. \
+ * {@link KnownDocumentBuildMode} can be used interchangeably with DocumentBuildMode,
+ *  this enum contains the known values that the service supports.
+ * ### Known values supported by the service
+ * **template**: Target documents with similar visual templates. \
+ * **neural**: Support documents with diverse visual templates.
+ */
+export declare type DocumentBuildMode = string;
+
+/** An object representing the location and content of a table caption. */
+export declare interface DocumentCaption {
+    /** Table caption content. */
+    content: string;
+    /** Bounding regions covering the table caption. */
+    boundingRegions?: BoundingRegion[];
+    /** Location of the table caption in the reading order concatenated content. */
+    spans: DocumentSpan[];
+}
+
+/** Get Operation response object. */
+export declare interface DocumentClassifierBuildOperationDetails extends OperationDetails {
+    /** Polymorphic discriminator, which specifies the different types this object can be */
+    kind: "documentClassifierBuild";
+    /** Operation result upon success. */
+    result?: DocumentClassifierDetails;
+}
+
+/** Document classifier info. */
+export declare interface DocumentClassifierDetails {
+    /** Unique document classifier name. */
+    classifierId: string;
+    /** Document classifier description. */
+    description?: string;
+    /** Date and time (UTC) when the document classifier was created. */
+    createdOn: Date;
+    /** Date and time (UTC) when the document classifier will expire. */
+    expiresOn?: Date;
+    /** API version used to create this document classifier. */
+    apiVersion: string;
+    /** List of document types to classify against. */
+    docTypes: {
+        [propertyName: string]: ClassifierDocumentTypeDetails;
+    };
+}
+
+/**
+ * A set of sources used to create a document classifier. This is a map of
+ * document type names to sources that will be used to train the model to
+ * classify documents of the corresponding source type.
+ */
+export declare interface DocumentClassifierDocumentTypeSources {
+    /**
+     * The training data source of a given document type name.
+     */
+    [docType: string]: DocumentClassifierSource;
+}
+
+/**
+ * The state of a model creation operation.
+ */
+export declare interface DocumentClassifierOperationState extends PollOperationState<DocumentClassifierDetails>, ModelAdministrationOperationStateCommon {
+}
+
+/**
+ * A long-running operation (poller) that tracks the state of a custom classifier creation operation, eventually
+ * producing a {@link DocumentClassifierDetails}.
+ */
+export declare type DocumentClassifierPoller = PollerLike<DocumentClassifierOperationState, DocumentClassifierDetails>;
+
+/**
+ * A content source that may be used to build a document classifier.
+ *
+ * One of:
+ * - BlobSource
+ * - BlobFileListSource
+ */
+export declare type DocumentClassifierSource = AzureBlobSource | AzureBlobFileListSource;
+
+/**
+ * A DocumentField that has a value indicating a country or region, represented as a string.
+ */
+export declare interface DocumentCountryRegionField extends DocumentFieldCommon {
+    /** Field kind: "countryRegion". */
+    kind: "countryRegion";
+    /**
+     * The 3-letter country/region code (ISO 3166-1 alpha-3) of the extracted country or region.
+     */
+    value?: string;
+}
+
+/**
+ * A DocumentField that describes an amount of a certain currency.
+ */
+export declare interface DocumentCurrencyField extends DocumentFieldCommon {
+    /** Field kind: "currency". */
+    kind: "currency";
+    /**
+     * The properties of the extracted currency.
+     */
+    value?: CurrencyValue;
+}
+
+/**
+ * A DocumentField that has a Date value.
+ */
+export declare interface DocumentDateField extends DocumentValueField<Date> {
+    /** Field kind: "date". */
+    kind: "date";
+}
+
+/**
+ * An extracted field. The `kind` property identifies (discriminates) the type of the `DocumentField`.
+ */
+export declare type DocumentField = DocumentStringField | DocumentDateField | DocumentTimeField | DocumentPhoneNumberField | DocumentNumberField | DocumentIntegerField | DocumentBooleanField | DocumentSelectionMarkField | DocumentCountryRegionField | DocumentSignatureField | DocumentCurrencyField | DocumentAddressField | DocumentArrayField | DocumentObjectField;
+
+/**
+ * Fields that are common to all DocumentField variants.
+ */
+export declare interface DocumentFieldCommon {
+    /**
+     * The verbatim extracted text content of the field.
+     */
+    content?: string;
+    /**
+     * Bounding regions covering the field.
+     */
+    boundingRegions?: BoundingRegion[];
+    /**
+     * Confidence of correctly extracting the field.
+     */
+    confidence?: number;
+    /**
+     * Location of the field in the reading order concatenated content.
+     */
+    spans?: DocumentSpan[];
+}
+
+/** Description of the field semantic schema using a JSON Schema style syntax. */
+export declare interface DocumentFieldSchema {
+    /** Semantic data type of the field value. */
+    type: DocumentFieldType;
+    /** Field description. */
+    description?: string;
+    /** Example field content. */
+    example?: string;
+    /** Field type schema of each array element. */
+    items?: DocumentFieldSchema;
+    /** Named sub-fields of the object field. */
+    properties?: {
+        [propertyName: string]: DocumentFieldSchema;
+    };
+}
+
+/**
+ * Defines values for DocumentFieldType. \
+ * {@link KnownDocumentFieldType} can be used interchangeably with DocumentFieldType,
+ *  this enum contains the known values that the service supports.
+ * ### Known values supported by the service
+ * **string**: Plain text. \
+ * **date**: Date, normalized to ISO 8601 (YYYY-MM-DD) format. \
+ * **time**: Time, normalized to ISO 8601 (hh:mm:ss) format. \
+ * **phoneNumber**: Phone number, normalized to E.164 (+{CountryCode}{SubscriberNumber}) format. \
+ * **number**: Floating point number, normalized to double precision floating point. \
+ * **integer**: Integer number, normalized to 64-bit signed integer. \
+ * **selectionMark**: Is field selected? \
+ * **countryRegion**: Country\/region, normalized to ISO 3166-1 alpha-3 format (ex. USA). \
+ * **signature**: Is signature present? \
+ * **array**: List of subfields of the same type. \
+ * **object**: Named list of subfields of potentially different types. \
+ * **currency**: Currency amount with optional currency symbol and unit. \
+ * **address**: Parsed address. \
+ * **boolean**: Boolean value, normalized to true or false.
+ */
+export declare type DocumentFieldType = string;
+
+/** An object representing the location and content of a table footnote. */
+export declare interface DocumentFootnote {
+    /** Table footnote content. */
+    content: string;
+    /** Bounding regions covering the table footnote. */
+    boundingRegions?: BoundingRegion[];
+    /** Location of the table footnote in the reading order concatenated content. */
+    spans: DocumentSpan[];
+}
+
+/**
+ * An extracted formula.
+ */
+export declare interface DocumentFormula extends HasBoundingPolygon {
+    /**
+     * The type of formula that was extracted. One of:
+     * - "inline": a formula embedded in the content of a paragraph.
+     * - "display": a formula in display mode that takes up a whole line.
+     */
+    kind: DocumentFormulaKind;
+    /** A LaTeX expression describing the formula. */
+    value: string;
+    /** Location of the formula in the reading-order concatenated content. */
+    span: DocumentSpan;
+    /** Confidence of correctly extracting the formula. */
+    confidence: number;
+}
+
+/**
+ * Defines values for DocumentFormulaKind. \
+ * {@link KnownDocumentFormulaKind} can be used interchangeably with DocumentFormulaKind,
+ *  this enum contains the known values that the service supports.
+ * ### Known values supported by the service
+ * **inline**: A formula embedded within the content of a paragraph. \
+ * **display**: A formula in display mode that takes up an entire line.
+ */
+export declare type DocumentFormulaKind = string;
+
+/**
+ * A DocumentField that has an integer value.
+ */
+export declare interface DocumentIntegerField extends DocumentValueField<number> {
+    /** Field kind: "integer". */
+    kind: "integer";
+}
+
+/** An object representing the field key or value in a key-value pair. */
+export declare interface DocumentKeyValueElement {
+    /** Concatenated content of the key-value element in reading order. */
+    content: string;
+    /** Bounding regions covering the key-value element. */
+    boundingRegions?: BoundingRegion[];
+    /** Location of the key-value element in the reading order concatenated content. */
+    spans: DocumentSpan[];
+}
+
+/** An object representing a form field with distinct field label (key) and field value (may be empty). */
+export declare interface DocumentKeyValuePair {
+    /** Field label of the key-value pair. */
+    key: DocumentKeyValueElement;
+    /** Field value of the key-value pair. */
+    value?: DocumentKeyValueElement;
+    /** Confidence of correctly extracting the key-value pair. */
+    confidence: number;
+}
+
+/** An object representing the detected language for a given text span. */
+export declare interface DocumentLanguage {
+    /** Detected language.  Value may an ISO 639-1 language code (ex. "en", "fr") or BCP 47 language tag (ex. "zh-Hans"). */
+    locale: string;
+    /** Location of the text elements in the concatenated content the language applies to. */
+    spans: DocumentSpan[];
+    /** Confidence of correctly identifying the language. */
+    confidence: number;
+}
+
+/** A content line object consisting of an adjacent sequence of content elements, such as words and selection marks. */
+export declare interface DocumentLine extends HasBoundingPolygon {
+    /** Concatenated content of the contained elements in reading order. */
+    content: string;
+    /** Location of the line in the reading order concatenated content. */
+    spans: DocumentSpan[];
+    /**
+     * Compute the `DocumentWord`s that are related to this line.
+     *
+     * This function produces a lazy iterator that will yield one word before computing the next.
+     */
+    words: () => IterableIterator<DocumentWord>;
+}
+
+/**
+ * A well-known model specification that supports extracting structured documents.
+ *
+ * See the `beginAnalyzeDocument` method of {@link DocumentAnalysisClient}, which supports consuming these
+ * `DocumentModel` objects instead of model ID strings to provide stronger result types.
+ */
+export declare interface DocumentModel<Result> {
+    /**
+     * The unique ID of this model.
+     */
+    modelId: string;
+    /**
+     * The API version of the model.
+     */
+    apiVersion?: string;
+    /**
+     * An associated transformation that is used to conver the base (weak) Result type to the strong version.
+     */
+    transformResult: (input: AnalyzeResult) => Result;
+}
+
+/**
+ * A client for interacting with the Form Recognizer service's model management features, such as creating, reading,
+ * listing, deleting, and copying models.
+ *
+ * ### Examples:
+ *
+ * #### Azure Active Directory
+ *
+ * ```typescript
+ * import { DocumentModelAdministrationClient } from "@azure/ai-form-recognizer";
+ * import { DefaultAzureCredential } from "@azure/identity";
+ *
+ * const endpoint = "https://<resource name>.cognitiveservices.azure.com";
+ * const credential = new DefaultAzureCredential();
+ *
+ * const client = new DocumentModelAdministrationClient(endpoint, credential);
+ * ```
+ *
+ * #### API Key (Subscription Key)
+ *
+ * ```typescript
+ * import { DocumentModelAdministrationClient, AzureKeyCredential } from "@azure/ai-form-recognizer";
+ *
+ * const endpoint = "https://<resource name>.cognitiveservices.azure.com";
+ * const credential = new AzureKeyCredential("<api key>");
+ *
+ * const client = new DocumentModelAdministrationClient(endpoint, credential);
+ * ```
+ */
+export declare class DocumentModelAdministrationClient {
+    private _restClient;
+    private _tracing;
+    /**
+     * Create a DocumentModelAdministrationClient instance from a resource endpoint and a an Azure Identity `TokenCredential`.
+     *
+     * See the [`@azure/identity`](https://npmjs.com/package/\@azure/identity) package for more information about
+     * authenticating with Azure Active Directory.
+     *
+     * ### Example:
+     *
+     * ```javascript
+     * import { DocumentModelAdministrationClient } from "@azure/ai-form-recognizer";
+     * import { DefaultAzureCredential } from "@azure/identity";
+     *
+     * const endpoint = "https://<resource name>.cognitiveservices.azure.com";
+     * const credential = new DefaultAzureCredential();
+     *
+     * const client = new DocumentModelAdministrationClient(endpoint, credential);
+     * ```
+     *
+     * @param endpoint - the endpoint URL of an Azure Cognitive Services instance
+     * @param credential - a TokenCredential instance from the `@azure/identity` package
+     * @param options - optional settings for configuring all methods in the client
+     */
+    constructor(endpoint: string, credential: TokenCredential, options?: DocumentModelAdministrationClientOptions);
+    /**
+     * Create a DocumentModelAdministrationClient instance from a resource endpoint and a static API key
+     * (`KeyCredential`),
+     *
+     * ### Example:
+     *
+     * ```javascript
+     * import { DocumentModelAdministrationClient, AzureKeyCredential } from "@azure/ai-form-recognizer";
+     *
+     * const endpoint = "https://<resource name>.cognitiveservices.azure.com";
+     * const credential = new AzureKeyCredential("<api key>");
+     *
+     * const client = new DocumentModelAdministrationClient(endpoint, credential);
+     * ```
+     *
+     * @param endpoint - the endpoint URL of an Azure Cognitive Services instance
+     * @param credential - a KeyCredential containing the Cognitive Services instance subscription key
+     * @param options - optional settings for configuring all methods in the client
+     */
+    constructor(endpoint: string, credential: KeyCredential, options?: DocumentModelAdministrationClientOptions);
+    /**
+     * @hidden
+     */
+    constructor(endpoint: string, credential: KeyCredential | TokenCredential, options?: DocumentModelAdministrationClientOptions);
+    /**
+     * Build a new model with a given ID from a set of input documents and labeled fields.
+     *
+     * The Model ID can consist of any text, so long as it does not begin with "prebuilt-" (as these models refer to
+     * prebuilt Form Recognizer models that are common to all resources), and so long as it does not already exist within
+     * the resource.
+     *
+     * The Form Recognizer service reads the training data set from an Azure Storage container, given as a URL to the
+     * container with a SAS token that allows the service backend to communicate with the container. At a minimum, the
+     * "read" and "list" permissions are required. In addition, the data in the given container must be organized
+     * according to a particular convention, which is documented in [the service's documentation for building custom
+     * models](https://aka.ms/form-recognizer/custom).
+     *
+     * ### Example
+     *
+     * ```javascript
+     * const modelId = "aNewModel";
+     * const containerUrl = "<training data container SAS URL>";
+     *
+     * const poller = await client.beginBuildDocumentModel(modelId, containerUrl, {
+     *   // Optionally, a text description may be attached to the model
+     *   description: "This is an example model!"
+     * });
+     *
+     * // Model building, like all other model creation operations, returns a poller that eventually produces a ModelDetails
+     * // object
+     * const modelDetails = await poller.pollUntilDone();
+     *
+     * const {
+     *   modelId, // identical to the modelId given when creating the model
+     *   description, // identical to the description given when creating the model
+     *   createdOn, // the Date (timestamp) that the model was created
+     *   docTypes // information about the document types in the model and their field schemas
+     * } = modelDetails;
+     * ```
+     *
+     * @param modelId - the unique ID of the model to create
+     * @param containerUrl - SAS-encoded URL to an Azure Storage container holding the training data set
+     * @param buildMode - the mode to use when building the model (see `DocumentModelBuildMode`)
+     * @param options - optional settings for the model build operation
+     * @returns a long-running operation (poller) that will eventually produce the created model information or an error
+     */
+    beginBuildDocumentModel(modelId: string, containerUrl: string, buildMode: DocumentModelBuildMode, options?: BeginBuildDocumentModelOptions): Promise<DocumentModelPoller>;
+    /**
+     * Build a new model with a given ID from a model content source.
+     *
+     * The Model ID can consist of any text, so long as it does not begin with "prebuilt-" (as these models refer to
+     * prebuilt Form Recognizer models that are common to all resources), and so long as it does not already exist within
+     * the resource.
+     *
+     * The content source describes the mechanism the service will use to read the input training data. See the
+     * {@link DocumentModelContentSource} type for more information.
+     *
+     * ### Example
+     *
+     * ```javascript
+     * const modelId = "aNewModel";
+     *
+     * const poller = await client.beginBuildDocumentModel(modelId, { containerUrl: "<SAS-encoded blob container URL>" }, {
+     *   // Optionally, a text description may be attached to the model
+     *   description: "This is an example model!"
+     * });
+     *
+     * // Model building, like all other model creation operations, returns a poller that eventually produces a ModelDetails
+     * // object
+     * const modelDetails = await poller.pollUntilDone();
+     *
+     * const {
+     *   modelId, // identical to the modelId given when creating the model
+     *   description, // identical to the description given when creating the model
+     *   createdOn, // the Date (timestamp) that the model was created
+     *   docTypes // information about the document types in the model and their field schemas
+     * } = modelDetails;
+     * ```
+     *
+     * @param modelId - the unique ID of the model to create
+     * @param contentSource - a content source that provides the training data for this model
+     * @param buildMode - the mode to use when building the model (see `DocumentModelBuildMode`)
+     * @param options - optional settings for the model build operation
+     * @returns a long-running operation (poller) that will eventually produce the created model information or an error
+     */
+    beginBuildDocumentModel(modelId: string, contentSource: DocumentModelSource, buildMode: DocumentModelBuildMode, options?: BeginBuildDocumentModelOptions): Promise<DocumentModelPoller>;
+    /**
+     * Creates a single composed model from several pre-existing submodels.
+     *
+     * The resulting composed model combines the document types of its component models, and inserts a classification step
+     * into the extraction pipeline to determine which of its component submodels is most appropriate for the given input.
+     *
+     * ### Example
+     *
+     * ```javascript
+     * const modelId = "aNewComposedModel";
+     * const subModelIds = [
+     *   "documentType1Model",
+     *   "documentType2Model",
+     *   "documentType3Model"
+     * ];
+     *
+     * // The resulting composed model can classify and extract data from documents
+     * // conforming to any of the above document types
+     * const poller = await client.beginComposeDocumentModel(modelId, subModelIds, {
+     *   description: "This is a composed model that can handle several document types."
+     * });
+     *
+     * // Model composition, like all other model creation operations, returns a poller that eventually produces a
+     * // ModelDetails object
+     * const modelDetails = await poller.pollUntilDone();
+     *
+     * const {
+     *   modelId, // identical to the modelId given when creating the model
+     *   description, // identical to the description given when creating the model
+     *   createdOn, // the Date (timestamp) that the model was created
+     *   docTypes // information about the document types of the composed submodels
+     * } = modelDetails;
+     * ```
+     *
+     * @param modelId - the unique ID of the model to create
+     * @param componentModelIds - an Iterable of strings representing the unique model IDs of the models to compose
+     * @param options - optional settings for model creation
+     * @returns a long-running operation (poller) that will eventually produce the created model information or an error
+     */
+    beginComposeDocumentModel(modelId: string, componentModelIds: Iterable<string>, options?: BeginComposeDocumentModelOptions): Promise<DocumentModelPoller>;
+    /**
+     * Creates an authorization to copy a model into the resource, used with the `beginCopyModelTo` method.
+     *
+     * The `CopyAuthorization` grants another cognitive service resource the right to create a model in this client's
+     * resource with the model ID and optional description that are encoded into the authorization.
+     *
+     * ### Example
+     *
+     * ```javascript
+     * // The copyAuthorization data structure stored below grants any cognitive services resource the right to copy a
+     * // model into the client's resource with the given destination model ID.
+     * const copyAuthorization = await client.getCopyAuthorization("<destination model ID>");
+     * ```
+     *
+     * @param destinationModelId - the unique ID of the destination model (the ID to copy the model into)
+     * @param options - optional settings for creating the copy authorization
+     * @returns a copy authorization that encodes the given modelId and optional description
+     */
+    getCopyAuthorization(destinationModelId: string, options?: GetCopyAuthorizationOptions): Promise<CopyAuthorization>;
+    /**
+     * Copies a model with the given ID into the resource and model ID encoded by a given copy authorization.
+     *
+     * See {@link CopyAuthorization} and {@link getCopyAuthorization}.
+     *
+     * ### Example
+     *
+     * ```javascript
+     * // We need a client for the source model's resource
+     * const sourceEndpoint = "https://<source resource name>.cognitiveservices.azure.com";
+     * const sourceCredential = new AzureKeyCredential("<source api key>");
+     * const sourceClient = new DocumentModelAdministrationClient(sourceEndpoint, sourceCredential);
+     *
+     * // We create the copy authorization using a client authenticated with the destination resource. Note that these two
+     * // resources can be the same (you can copy a model to a new ID in the same resource).
+     * const copyAuthorization = await client.getCopyAuthorization("<destination model ID>");
+     *
+     * // Finally, use the _source_ client to copy the model and await the copy operation
+     * const poller = await sourceClient.beginCopyModelTo("<source model ID>");
+     *
+     * // Model copying, like all other model creation operations, returns a poller that eventually produces a ModelDetails
+     * // object
+     * const modelDetails = await poller.pollUntilDone();
+     *
+     * const {
+     *   modelId, // identical to the modelId given when creating the copy authorization
+     *   description, // identical to the description given when creating the copy authorization
+     *   createdOn, // the Date (timestamp) that the model was created
+     *   docTypes // information about the document types of the model (identical to the original, source model)
+     * } = modelDetails;
+     * ```
+     *
+     * @param sourceModelId - the unique ID of the source model that will be copied
+     * @param authorization - an authorization to copy the model, created using the {@link getCopyAuthorization}
+     * @param options - optional settings for
+     * @returns a long-running operation (poller) that will eventually produce the copied model information or an error
+     */
+    beginCopyModelTo(sourceModelId: string, authorization: CopyAuthorization, options?: BeginCopyModelOptions): Promise<DocumentModelPoller>;
+    /**
+     * Build a new document classifier with the given classifier ID and document types.
+     *
+     * The classifier ID must be unique among classifiers within the resource.
+     *
+     * The document types are given as an object that maps the name of the document type to the training data set for that
+     * document type. Two training data input methods are supported:
+     *
+     * - `azureBlobSource`, which trains a classifier using the data in the given Azure Blob Storage container.
+     * - `azureBlobFileListSource`, which is similar to `azureBlobSource` but allows for more fine-grained control over
+     *   the files that are included in the training data set by using a JSONL-formatted file list.
+     *
+     * The Form Recognizer service reads the training data set from an Azure Storage container, given as a URL to the
+     * container with a SAS token that allows the service backend to communicate with the container. At a minimum, the
+     * "read" and "list" permissions are required. In addition, the data in the given container must be organized
+     * according to a particular convention, which is documented in [the service's documentation for building custom
+     * document classifiers](https://aka.ms/azsdk/formrecognizer/buildclassifiermodel).
+     *
+     * ### Example
+     *
+     * ```javascript
+     * const classifierId = "aNewClassifier";
+     * const containerUrl1 = "<training data container SAS URL 1>";
+     * const containerUrl2 = "<training data container SAS URL 2>";
+     *
+     * const poller = await client.beginBuildDocumentClassifier(
+     *   classifierId,
+     *   {
+     *     // The document types. Each entry in this object should map a document type name to a
+     *     // `ClassifierDocumentTypeDetails` object
+     *     "formX": {
+     *       azureBlobSource: {
+     *         containerUrl: containerUrl1,
+     *       }
+     *     },
+     *     "formY": {
+     *       azureBlobFileListSource: {
+     *         containerUrl: containerUrl2,
+     *         fileList: "path/to/fileList.jsonl"
+     *       }
+     *     },
+     *   },
+     *   {
+     *     // Optionally, a text description may be attached to the classifier
+     *     description: "This is an example classifier!"
+     *   }
+     * );
+     *
+     * // Classifier building, like model creation operations, returns a poller that eventually produces a
+     * // DocumentClassifierDetails object
+     * const classifierDetails = await poller.pollUntilDone();
+     *
+     * const {
+     *   classifierId, // identical to the classifierId given when creating the classifier
+     *   description, // identical to the description given when creating the classifier (if any)
+     *   createdOn, // the Date (timestamp) that the classifier was created
+     *   docTypes // information about the document types in the classifier and their details
+     * } = classifierDetails;
+     * ```
+     *
+     * @param classifierId - the unique ID of the classifier to create
+     * @param docTypeSources - the document types to include in the classifier and their sources (a map of document type
+     *                         names to `ClassifierDocumentTypeDetails`)
+     * @param options - optional settings for the classifier build operation
+     * @returns a long-running operation (poller) that will eventually produce the created classifier details or an error
+     */
+    beginBuildDocumentClassifier(classifierId: string, docTypeSources: DocumentClassifierDocumentTypeSources, options?: BeginBuildDocumentClassifierOptions): Promise<DocumentClassifierPoller>;
+    /**
+     * Create an LRO poller that handles model creation operations.
+     *
+     * This is the meat of the above model creation operations.
+     *
+     * @param definition - operation definition (start operation method, request options)
+     * @returns a model poller (produces a ModelDetails)
+     */
+    private createAdministrationPoller;
+    /**
+     * Retrieve basic information about this client's resource.
+     *
+     * ### Example
+     *
+     * ```javascript
+     * const {
+     *   // Information about the custom models in the current resource
+     *   customDocumentModelDetails: {
+     *     // The number of custom models in the current resource
+     *     count,
+     *     // The maximum number of models that the current resource can support
+     *     limit
+     *   }
+     * } = await client.getResourceDetails();
+     * ```
+     *
+     * @param options - optional settings for the request
+     * @returns basic information about this client's resource
+     */
+    getResourceDetails(options?: GetResourceDetailsOptions): Promise<ResourceDetails>;
+    /**
+     * Retrieves information about a model ({@link DocumentModelDetails}) by ID.
+     *
+     * This method can retrieve information about custom as well as prebuilt models.
+     *
+     * ### **Breaking Change**
+     *
+     * In previous versions of the Form Recognizer REST API and SDK, the `getModel` method could return any model, even
+     * one that failed to create due to errors. In the new service versions, `getDocumentModel` and `listDocumentModels`
+     * _only produce successfully created models_ (i.e. models that are "ready" for use). Failed models are now retrieved
+     * through the "operations" APIs, see {@link getOperation} and {@link listOperations}.
+     *
+     * ### Example
+     *
+     * ```javascript
+     * // The ID of the prebuilt business card model
+     * const modelId = "prebuilt-businessCard";
+     *
+     * const {
+     *   modelId, // identical to the modelId given when calling `getDocumentModel`
+     *   description, // a textual description of the model, if provided during model creation
+     *   createdOn, // the Date (timestamp) that the model was created
+     *   // information about the document types in the model and their field schemas
+     *   docTypes: {
+     *     // the document type of the prebuilt business card model
+     *     "prebuilt:businesscard": {
+     *       // an optional, textual description of this document type
+     *       description,
+     *       // the schema of the fields in this document type, see the FieldSchema type
+     *       fieldSchema,
+     *       // the service's confidences in the fields (an object with field names as properties and numeric confidence
+     *       // values)
+     *       fieldConfidence
+     *     }
+     *   }
+     * } = await client.getDocumentModel(modelId);
+     * ```
+     *
+     * @param modelId - the unique ID of the model to query
+     * @param options - optional settings for the request
+     * @returns information about the model with the given ID
+     */
+    getDocumentModel(modelId: string, options?: GetModelOptions): Promise<DocumentModelDetails>;
+    /**
+     * List summaries of models in the resource. Custom as well as prebuilt models will be included. This operation
+     * supports paging.
+     *
+     * The model summary ({@link DocumentModelSummary}) includes only the basic information about the model, and does not include
+     * information about the document types in the model (such as the field schemas and confidence values).
+     *
+     * To access the full information about the model, use {@link getDocumentModel}.
+     *
+     * ### **Breaking Change**
+     *
+     * In previous versions of the Form Recognizer REST API and SDK, the `listModels` method would return all models, even
+     * those that failed to create due to errors. In the new service versions, `listDocumentModels` and `getDocumentModel`
+     * _only produce successfully created models_ (i.e. models that are "ready" for use). Failed models are now retrieved
+     * through the "operations" APIs, see {@link getOperation} and {@link listOperations}.
+     *
+     * ### Examples
+     *
+     * #### Async Iteration
+     *
+     * ```javascript
+     * for await (const summary of client.listDocumentModels()) {
+     *   const {
+     *     modelId, // The model's unique ID
+     *     description, // a textual description of the model, if provided during model creation
+     *   } = summary;
+     *
+     *   // You can get the full model info using `getDocumentModel`
+     *   const model = await client.getDocumentModel(modelId);
+     * }
+     * ```
+     *
+     * #### By Page
+     *
+     * ```javascript
+     * // The listDocumentModels method is paged, and you can iterate by page using the `byPage` method.
+     * const pages = client.listDocumentModels().byPage();
+     *
+     * for await (const page of pages) {
+     *   // Each page is an array of models and can be iterated synchronously
+     *   for (const model of page) {
+     *     const {
+     *       modelId, // The model's unique ID
+     *       description, // a textual description of the model, if provided during model creation
+     *     } = summary;
+     *
+     *     // You can get the full model info using `getDocumentModel`
+     *     const model = await client.getDocumentModel(modelId);
+     *   }
+     * }
+     * ```
+     *
+     * @param options - optional settings for the model requests
+     * @returns an async iterable of model summaries that supports paging
+     */
+    listDocumentModels(options?: ListModelsOptions): PagedAsyncIterableIterator<DocumentModelSummary>;
+    /**
+     * Deletes a model with the given ID from the client's resource, if it exists. This operation CANNOT be reverted.
+     *
+     * ### Example
+     *
+     * ```javascript
+     * await client.deleteDocumentModel("<model ID to delete>"));
+     * ```
+     *
+     * @param modelId - the unique ID of the model to delete from the resource
+     * @param options - optional settings for the request
+     */
+    deleteDocumentModel(modelId: string, options?: DeleteDocumentModelOptions): Promise<void>;
+    /**
+     * Retrieves information about a classifier ({@link DocumentClassifierDetails}) by ID.
+     *
+     * ### Example
+     *
+     * ```javascript
+     * const classifierId = "<classifier ID";
+     *
+     * const {
+     *   classifierId, // identical to the ID given when calling `getDocumentClassifier`
+     *   description, // a textual description of the classifier, if provided during classifier creation
+     *   createdOn, // the Date (timestamp) that the classifier was created
+     *   // information about the document types in the classifier and their corresponding traning data
+     *   docTypes
+     * } = await client.getDocumentClassifier(classifierId);
+     *
+     * // The `docTypes` property is a map of document type names to information about the training data
+     * // for that document type.
+     * for (const [docTypeName, classifierDocTypeDetails] of Object.entries(docTypes)) {
+     *  console.log(`- '${docTypeName}': `, classifierDocTypeDetails);
+     * }
+     * ```
+     *
+     * @param classifierId - the unique ID of the classifier to query
+     * @param options - optional settings for the request
+     * @returns information about the classifier with the given ID
+     */
+    getDocumentClassifier(classifierId: string, options?: OperationOptions): Promise<DocumentClassifierDetails>;
+    /**
+     * List details about classifiers in the resource. This operation supports paging.
+     *
+     * ### Examples
+     *
+     * #### Async Iteration
+     *
+     * ```javascript
+     * for await (const details of client.listDocumentClassifiers()) {
+     *   const {
+     *     classifierId, // The classifier's unique ID
+     *     description, // a textual description of the classifier, if provided during creation
+     *     docTypes, // information about the document types in the classifier and their corresponding traning data
+     *   } = details;
+     * }
+     * ```
+     *
+     * #### By Page
+     *
+     * ```javascript
+     * // The listDocumentClassifiers method is paged, and you can iterate by page using the `byPage` method.
+     * const pages = client.listDocumentClassifiers().byPage();
+     *
+     * for await (const page of pages) {
+     *   // Each page is an array of classifiers and can be iterated synchronously
+     *   for (const details of page) {
+     *     const {
+     *       classifierId, // The classifier's unique ID
+     *       description, // a textual description of the classifier, if provided during creation
+     *       docTypes, // information about the document types in the classifier and their corresponding traning data
+     *     } = details;
+     *   }
+     * }
+     * ```
+     *
+     * @param options - optional settings for the classifier requests
+     * @returns an async iterable of classifier details that supports paging
+     */
+    listDocumentClassifiers(options?: ListModelsOptions): PagedAsyncIterableIterator<DocumentClassifierDetails>;
+    /**
+     * Deletes a classifier with the given ID from the client's resource, if it exists. This operation CANNOT be reverted.
+     *
+     * ### Example
+     *
+     * ```javascript
+     * await client.deleteDocumentClassifier("<classifier ID to delete>"));
+     * ```
+     *
+     * @param classifierId - the unique ID of the classifier to delete from the resource
+     * @param options - optional settings for the request
+     */
+    deleteDocumentClassifier(classifierId: string, options?: OperationOptions): Promise<void>;
+    /**
+     * Retrieves information about an operation (`OperationDetails`) by its ID.
+     *
+     * Operations represent non-analysis tasks, such as building, composing, or copying a model.
+     *
+     * @param operationId - the ID of the operation to query
+     * @param options - optional settings for the request
+     * @returns information about the operation with the given ID
+     *
+     * ### Example
+     *
+     * ```javascript
+     * // The ID of the operation, which should be a GUID
+     * const operationId = "<operation GUID>";
+     *
+     * const {
+     *   operationId, // identical to the operationId given when calling `getOperation`
+     *   kind, // the operation kind, one of "documentModelBuild", "documentModelCompose", or "documentModelCopyTo"
+     *   status, // the status of the operation, one of "notStarted", "running", "failed", "succeeded", or "canceled"
+     *   percentCompleted, // a number between 0 and 100 representing the progress of the operation
+     *   createdOn, // a Date object that reflects the time when the operation was started
+     *   lastUpdatedOn, // a Date object that reflects the time when the operation state was last modified
+     * } = await client.getOperation(operationId);
+     * ```
+     */
+    getOperation(operationId: string, options?: GetOperationOptions): Promise<OperationDetails>;
+    /**
+     * List model creation operations in the resource. This will produce all operations, including operations that failed
+     * to create models successfully. This operation supports paging.
+     *
+     * ### Examples
+     *
+     * #### Async Iteration
+     *
+     * ```javascript
+     * for await (const operation of client.listOperations()) {
+     *   const {
+     *     operationId, // the operation's GUID
+     *     status, // the operation status, one of "notStarted", "running", "succeeded", "failed", or "canceled"
+     *     percentCompleted // the progress of the operation, from 0 to 100
+     *   } = operation;
+     * }
+     * ```
+     *
+     * #### By Page
+     *
+     * ```javascript
+     * // The listOperations method is paged, and you can iterate by page using the `byPage` method.
+     * const pages = client.listOperations().byPage();
+     *
+     * for await (const page of pages) {
+     *   // Each page is an array of operation info objects and can be iterated synchronously
+     *   for (const operation of page) {
+     *     const {
+     *       operationId, // the operation's GUID
+     *       status, // the operation status, one of "notStarted", "running", "succeeded", "failed", or "canceled"
+     *       percentCompleted // the progress of the operation, from 0 to 100
+     *     } = operation;
+     *   }
+     * }
+     * ```
+     *
+     * @param options - optional settings for the operation requests
+     * @returns an async iterable of operation information objects that supports paging
+     */
+    listOperations(options?: ListOperationsOptions): PagedAsyncIterableIterator<OperationSummary>;
+}
+
+/**
+ * Configurable options for DocumentModelAdministrationClient.
+ */
+export declare interface DocumentModelAdministrationClientOptions extends CommonClientOptions {
+}
+
+/**
+ * Supported model build modes. The model build mode selects the engine that the service uses to train the model based
+ * on the labeled training data.
+ *
+ * The options are:
+ * - "neural", which yields the highest quality of model that is capable of extracting data from classes of documents
+ *   that have the same structure of data, but different layouts (for example, W2 tax forms, which may vary from company
+ *   to company, but always contain the same information).
+ * - "template", which requires all documents to have the same fixed layout (template).
+ *
+ * Please see the following link for more information: https://aka.ms/azsdk/formrecognizer/buildmode
+ */
+export declare type DocumentModelBuildMode = (typeof DocumentModelBuildMode)[keyof typeof DocumentModelBuildMode];
+
+/**
+ * Supported values of `DocumentModelBuildMode`.
+ */
+export declare const DocumentModelBuildMode: {
+    /**
+     * A mode that builds a model assuming that documents all follow the same, fixed template layout (the same relative
+     * positioning of fields between documents).
+     */
+    readonly Template: "template";
+    /**
+     * A mode that uses a neural engine to extract fields, allowing for documents that have different visual appearances,
+     * but that contain the same information.
+     */
+    readonly Neural: "neural";
+};
+
+/** Get Operation response object. */
+export declare interface DocumentModelBuildOperationDetails extends OperationDetails {
+    /** Polymorphic discriminator, which specifies the different types this object can be */
+    kind: "documentModelBuild";
+    /** Operation result upon success. */
+    result?: DocumentModelDetails;
+}
+
+/** Get Operation response object. */
+export declare interface DocumentModelComposeOperationDetails extends OperationDetails {
+    /** Polymorphic discriminator, which specifies the different types this object can be */
+    kind: "documentModelCompose";
+    /** Operation result upon success. */
+    result?: DocumentModelDetails;
+}
+
+/** Get Operation response object. */
+export declare interface DocumentModelCopyToOperationDetails extends OperationDetails {
+    /** Polymorphic discriminator, which specifies the different types this object can be */
+    kind: "documentModelCopyTo";
+    /** Operation result upon success. */
+    result?: DocumentModelDetails;
+}
+
+/** Document model info. */
+export declare interface DocumentModelDetails {
+    /** Unique document model name. */
+    modelId: string;
+    /** Document model description. */
+    description?: string;
+    /** Date and time (UTC) when the document model was created. */
+    createdOn: Date;
+    /** Date and time (UTC) when the document model will expire. */
+    expiresOn?: Date;
+    /** API version used to create this document model. */
+    apiVersion?: string;
+    /** List of key-value tag attributes associated with the document model. */
+    tags?: {
+        [propertyName: string]: string;
+    };
+    /** Supported document types. */
+    docTypes?: {
+        [propertyName: string]: DocumentTypeDetails;
+    };
+}
+
+/**
+ * The state of a model creation operation.
+ */
+export declare interface DocumentModelOperationState extends PollOperationState<DocumentModelDetails>, ModelAdministrationOperationStateCommon {
+}
+
+/**
+ * A long-running operation (poller) that tracks the state of a model creation operation, eventually producing a
+ * {@link DocumentModelDetails}.
+ */
+export declare type DocumentModelPoller = PollerLike<DocumentModelOperationState, DocumentModelDetails>;
+
+/**
+ * A content source that may be used to build a document model.
+ *
+ * One of:
+ * - BlobSource
+ * - BlobFileListSource
+ */
+export declare type DocumentModelSource = AzureBlobSource | AzureBlobFileListSource;
+
+/** Document model summary. */
+export declare interface DocumentModelSummary {
+    /** Unique document model name. */
+    modelId: string;
+    /** Document model description. */
+    description?: string;
+    /** Date and time (UTC) when the document model was created. */
+    createdOn: Date;
+    /** Date and time (UTC) when the document model will expire. */
+    expiresOn?: Date;
+    /** API version used to create this document model. */
+    apiVersion?: string;
+    /** List of key-value tag attributes associated with the document model. */
+    tags?: {
+        [propertyName: string]: string;
+    };
+}
+
+/**
+ * A DocumentField that has a number value.
+ */
+export declare interface DocumentNumberField extends DocumentValueField<number> {
+    /** Field kind: "number". */
+    kind: "number";
+}
+
+/**
+ * A DocumentField that consists of several named properties that have their own DocumentField values.
+ */
+export declare interface DocumentObjectField<Properties = {
+    [k: string]: DocumentField | undefined;
+}> extends DocumentFieldCommon {
+    /** Field kind: "object". */
+    kind: "object";
+    /**
+     * The extracted object properties. Each property of this object is, itself, a nested DocumentField.
+     */
+    properties: Properties;
+}
+
+/** Content and layout elements extracted from a page from the input. */
+export declare interface DocumentPage {
+    /** 1-based page number in the input document. */
+    pageNumber: number;
+    /** The general orientation of the content in clockwise direction, measured in degrees between (-180, 180]. */
+    angle?: number;
+    /** The width of the image/PDF in pixels/inches, respectively. */
+    width?: number;
+    /** The height of the image/PDF in pixels/inches, respectively. */
+    height?: number;
+    /** The unit used by the width, height, and polygon properties. For images, the unit is "pixel". PDF, the unit is "inch". */
+    unit?: LengthUnit;
+    /** Location of the page in the reading order concatenated content. */
+    spans: DocumentSpan[];
+    /** Extracted words from the page. */
+    words?: DocumentWord[];
+    /** Extracted selection marks from the page. */
+    selectionMarks?: DocumentSelectionMark[];
+    /** Extracted lines from the page, potentially containing both textual and visual elements. */
+    lines?: DocumentLine[];
+    /**
+     * Extracted barcodes from the page.
+     */
+    barcodes?: DocumentBarcode[];
+    /**
+     * Extracted formulas from the page.
+     *
+     * The `"formulas"` feature must be enabled or this property will be undefined.
+     *
+     * See {@link AnalyzeDocumentOptions#features}.
+     */
+    formulas?: DocumentFormula[];
+}
+
+/** A paragraph object consisting with contiguous lines generally with common alignment and spacing. */
+export declare interface DocumentParagraph {
+    /** Semantic role of the paragraph. */
+    role?: ParagraphRole;
+    /** Concatenated content of the paragraph in reading order. */
+    content: string;
+    /** Bounding regions covering the paragraph. */
+    boundingRegions?: BoundingRegion[];
+    /** Location of the paragraph in the reading order concatenated content. */
+    spans: DocumentSpan[];
+}
+
+/**
+ * A DocumentField that has a phone number value, represented as a string.
+ */
+export declare interface DocumentPhoneNumberField extends DocumentFieldCommon {
+    /** Field kind: "phoneNumber". */
+    kind: "phoneNumber";
+    /**
+     * The field's value, which is a string containing the phone number.
+     *
+     * The phone number value is normalized to a standard format. If the value could not be normalized, this value may be
+     * undefined, and the `content` property will contain the verbatim text of the DocumentField as it appeared in the
+     * input.
+     */
+    value?: string;
+}
+
+/** A selection mark object representing check boxes, radio buttons, and other elements indicating a selection. */
+export declare interface DocumentSelectionMark extends HasBoundingPolygon {
+    /** State of the selection mark. */
+    state: SelectionMarkState;
+    /** Location of the selection mark in the reading order concatenated content. */
+    span: DocumentSpan;
+    /** Confidence of correctly extracting the selection mark. */
+    confidence: number;
+}
+
+/**
+ * A DocumentField that is has a value indicating a selection mark state (such as a checkbox or radio button),
+ * represented as a string.
+ */
+export declare interface DocumentSelectionMarkField extends DocumentFieldCommon {
+    /** Field kind: "selectionMark". */
+    kind: "selectionMark";
+    /**
+     * The state of the selection mark. One of:
+     *
+     * - "selected"
+     * - "unselected"
+     *
+     * This value may be undefined, and other variants may be introduced in the future.
+     */
+    value?: string;
+}
+
+/**
+ * A DocumentField that indicates the state of a signature, represented as a string.
+ */
+export declare interface DocumentSignatureField extends DocumentFieldCommon {
+    /** Field kind: "signature". */
+    kind: "signature";
+    /**
+     * The state of the signature field. One of:
+     *
+     * - "unsigned"
+     * - "signed"
+     *
+     * This value may be undefined, and other variants may be introduced in the future.
+     */
+    value: "signed" | "unsigned";
+}
+
+/**
+ * Defines values for DocumentSignatureType. \
+ * {@link KnownDocumentSignatureType} can be used interchangeably with DocumentSignatureType,
+ *  this enum contains the known values that the service supports.
+ * ### Known values supported by the service
+ * **signed**: A signature is detected. \
+ * **unsigned**: No signatures are detected.
+ */
+export declare type DocumentSignatureType = string;
+
+/** Contiguous region of the concatenated content property, specified as an offset and length. */
+export declare interface DocumentSpan {
+    /** Zero-based index of the content represented by the span. */
+    offset: number;
+    /** Number of characters in the content represented by the span. */
+    length: number;
+}
+
+/**
+ * A DocumentField that has a string value.
+ */
+export declare interface DocumentStringField<Value extends string = string> extends DocumentValueField<Value> {
+    /** Field kind: "string". */
+    kind: "string";
+}
+
+/** An object representing observed text styles. */
+export declare interface DocumentStyle {
+    /** Is content handwritten? */
+    isHandwritten?: boolean;
+    /** Visually most similar font from among the set of supported font families, with fallback fonts following CSS convention (ex. 'Arial, sans-serif'). */
+    similarFontFamily?: string;
+    /** Font style. */
+    fontStyle?: FontStyle;
+    /** Font weight. */
+    fontWeight?: FontWeight;
+    /** Foreground color in #rrggbb hexadecimal format. */
+    color?: string;
+    /** Background color in #rrggbb hexadecimal format.. */
+    backgroundColor?: string;
+    /** Location of the text elements in the concatenated content the style applies to. */
+    spans: DocumentSpan[];
+    /** Confidence of correctly identifying the style. */
+    confidence: number;
+}
+
+/** A table object consisting table cells arranged in a rectangular layout. */
+export declare interface DocumentTable {
+    /** Number of rows in the table. */
+    rowCount: number;
+    /** Number of columns in the table. */
+    columnCount: number;
+    /** Cells contained within the table. */
+    cells: DocumentTableCell[];
+    /** Bounding regions covering the table. */
+    boundingRegions?: BoundingRegion[];
+    /** Location of the table in the reading order concatenated content. */
+    spans: DocumentSpan[];
+}
+
+/** An object representing the location and content of a table cell. */
+export declare interface DocumentTableCell {
+    /** Table cell kind. */
+    kind?: DocumentTableCellKind;
+    /** Row index of the cell. */
+    rowIndex: number;
+    /** Column index of the cell. */
+    columnIndex: number;
+    /** Number of rows spanned by this cell. */
+    rowSpan?: number;
+    /** Number of columns spanned by this cell. */
+    columnSpan?: number;
+    /** Concatenated content of the table cell in reading order. */
+    content: string;
+    /** Bounding regions covering the table cell. */
+    boundingRegions?: BoundingRegion[];
+    /** Location of the table cell in the reading order concatenated content. */
+    spans: DocumentSpan[];
+}
+
+/**
+ * Defines values for DocumentTableCellKind. \
+ * {@link KnownDocumentTableCellKind} can be used interchangeably with DocumentTableCellKind,
+ *  this enum contains the known values that the service supports.
+ * ### Known values supported by the service
+ * **content**: Contains the main content\/data. \
+ * **rowHeader**: Describes the content of the row. \
+ * **columnHeader**: Describes the content of the column. \
+ * **stubHead**: Describes the row headers, usually located at the top left corner of a table. \
+ * **description**: Describes the content in (parts of) the table.
+ */
+export declare type DocumentTableCellKind = string;
+
+/**
+ * A DocumentField that has a time value, represented as a string.
+ */
+export declare interface DocumentTimeField extends DocumentFieldCommon {
+    /** Field kind: "time". */
+    kind: "time";
+    /**
+     * The field's value, which is a time in "HH:MM:SS" (ISO 8601) format.
+     */
+    value?: string;
+}
+
+/** Document type info. */
+export declare interface DocumentTypeDetails {
+    /** Document model description. */
+    description?: string;
+    /** Custom document model build mode. */
+    buildMode?: DocumentBuildMode;
+    /** Description of the document semantic schema using a JSON Schema style syntax. */
+    fieldSchema: {
+        [propertyName: string]: DocumentFieldSchema;
+    };
+    /** Estimated confidence for each field. */
+    fieldConfidence?: {
+        [propertyName: string]: number;
+    };
+}
+
+/**
+ * A simple field that has a primitive value, such as a string, number etc.
+ */
+export declare interface DocumentValueField<T> extends DocumentFieldCommon {
+    /**
+     * The field's value, which has the type specified in the field's schema.
+     */
+    value?: T;
+}
+
+/** A word object consisting of a contiguous sequence of characters.  For non-space delimited languages, such as Chinese, Japanese, and Korean, each character is represented as its own word. */
+export declare interface DocumentWord extends HasBoundingPolygon {
+    /** Text content of the word. */
+    content: string;
+    /** Location of the word in the reading order concatenated content. */
+    span: DocumentSpan;
+    /** Confidence of correctly extracting the word. */
+    confidence: number;
+}
+
+/** Error info. */
+export declare interface ErrorModel {
+    /** Error code. */
+    code: string;
+    /** Error message. */
+    message: string;
+    /** Target of the error. */
+    target?: string;
+    /** List of detailed errors. */
+    details?: ErrorModel[];
+    /** Detailed error. */
+    innererror?: InnerError;
+}
+
+/**
+ * Defines values for FontStyle. \
+ * {@link KnownFontStyle} can be used interchangeably with FontStyle,
+ *  this enum contains the known values that the service supports.
+ * ### Known values supported by the service
+ * **normal**: Characters are represented normally. \
+ * **italic**: Characters are visually slanted to the right.
+ */
+export declare type FontStyle = string;
+
+/**
+ * Defines values for FontWeight. \
+ * {@link KnownFontWeight} can be used interchangeably with FontWeight,
+ *  this enum contains the known values that the service supports.
+ * ### Known values supported by the service
+ * **normal**: Characters are represented normally. \
+ * **bold**: Characters are represented with thicker strokes.
+ */
+export declare type FontWeight = string;
+
+/**
+ * Add-on capabilities (features) that can be enabled for the request.
+ *
+ * For more information about the features available in Form Recognizer, see the service documentation:
+ *
+ * https://aka.ms/azsdk/formrecognizer/features
+ */
+export declare type FormRecognizerFeature = (typeof FormRecognizerFeature)[keyof typeof FormRecognizerFeature] | (string & {});
+
+/**
+ * Known feature flags supported by the Form Recognizer clients.
+ */
+export declare const FormRecognizerFeature: {
+    /**
+     * Enables extracting extra font information.
+     */
+    readonly Fonts: "styleFont";
+    /**
+     * Enables high-resolution processing for documents with small text.
+     */
+    readonly OcrHighResolution: "ocrHighResolution";
+    /**
+     * Enables the detection of mathematical expressions in the document..
+     */
+    readonly Formulas: "formulas";
+    /**
+     * Enables the detection of the text content language.
+     */
+    readonly Languages: "languages";
+    /**
+     *  Enables the detection of barcodes in the document.
+     */
+    readonly Barcodes: "barcodes";
+    /**
+     *  Enables the detection of general key value pairs (form fields) in the document.
+     */
+    readonly KeyValuePairs: "keyValuePairs";
+};
+
+/**
+ * A request input that can be uploaded as binary data to the Form Recognizer service. Form Recognizer treats `string`
+ * inputs as URLs, so to send a string as a _binary_ input, first convert the string to one of the following input
+ * types.
+ */
+export declare type FormRecognizerRequestBody = NodeJS.ReadableStream | Blob | ArrayBuffer | ArrayBufferView;
+
+/**
+ * Options for the get copy authorization method.
+ */
+export declare interface GetCopyAuthorizationOptions extends OperationOptions, CommonModelCreationOptions {
+}
+
+/**
+ * Options for retrieving model information.
+ */
+export declare interface GetModelOptions extends OperationOptions {
+}
+
+/**
+ * Options for retrieving an operation state.
+ */
+export declare interface GetOperationOptions extends OperationOptions {
+}
+
+/**
+ * Options for retrieving Form Recognizer resource information.
+ */
+export declare interface GetResourceDetailsOptions extends OperationOptions {
+}
+
+/** Simple document elements such as words, selection marks and lines are bounded by the polygon. */
+export declare interface HasBoundingPolygon {
+    /** Bounding polygon of the entity. */
+    polygon?: Point2D[];
+}
+
+/** Detailed error. */
+export declare interface InnerError {
+    /** Error code. */
+    code: string;
+    /** Error message. */
+    message?: string;
+    /** Detailed error. */
+    innererror?: InnerError;
+}
+
+/** Known values of {@link DocumentBarcodeKind} that the service accepts. */
+export declare enum KnownDocumentBarcodeKind {
+    /** QR code, as defined in ISO/IEC 18004:2015. */
+    QRCode = "QRCode",
+    /** PDF417, as defined in ISO 15438. */
+    PDF417 = "PDF417",
+    /** GS1 12-digit Universal Product Code. */
+    Upca = "UPCA",
+    /** GS1 6-digit Universal Product Code. */
+    Upce = "UPCE",
+    /** Code 39 barcode, as defined in ISO/IEC 16388:2007. */
+    Code39 = "Code39",
+    /** Code 128 barcode, as defined in ISO/IEC 15417:2007. */
+    Code128 = "Code128",
+    /** GS1 8-digit International Article Number (European Article Number). */
+    EAN8 = "EAN8",
+    /** GS1 13-digit International Article Number (European Article Number). */
+    EAN13 = "EAN13",
+    /** GS1 DataBar barcode. */
+    DataBar = "DataBar",
+    /** Code 93 barcode, as defined in ANSI/AIM BC5-1995. */
+    Code93 = "Code93",
+    /** Codabar barcode, as defined in ANSI/AIM BC3-1995. */
+    Codabar = "Codabar",
+    /** GS1 DataBar Expanded barcode. */
+    DataBarExpanded = "DataBarExpanded",
+    /** Interleaved 2 of 5 barcode, as defined in ANSI/AIM BC2-1995. */
+    ITF = "ITF",
+    /** Micro QR code, as defined in ISO/IEC 23941:2022. */
+    MicroQRCode = "MicroQRCode",
+    /** Aztec code, as defined in ISO/IEC 24778:2008. */
+    Aztec = "Aztec",
+    /** Data matrix code, as defined in ISO/IEC 16022:2006. */
+    DataMatrix = "DataMatrix",
+    /** MaxiCode, as defined in ISO/IEC 16023:2000. */
+    MaxiCode = "MaxiCode"
+}
+
+/** Known values of {@link DocumentBuildMode} that the service accepts. */
+export declare enum KnownDocumentBuildMode {
+    /** Target documents with similar visual templates. */
+    Template = "template",
+    /** Support documents with diverse visual templates. */
+    Neural = "neural"
+}
+
+/** Known values of {@link DocumentFieldType} that the service accepts. */
+export declare enum KnownDocumentFieldType {
+    /** Plain text. */
+    String = "string",
+    /** Date, normalized to ISO 8601 (YYYY-MM-DD) format. */
+    Date = "date",
+    /** Time, normalized to ISO 8601 (hh:mm:ss) format. */
+    Time = "time",
+    /** Phone number, normalized to E.164 (+{CountryCode}{SubscriberNumber}) format. */
+    PhoneNumber = "phoneNumber",
+    /** Floating point number, normalized to double precision floating point. */
+    Number = "number",
+    /** Integer number, normalized to 64-bit signed integer. */
+    Integer = "integer",
+    /** Is field selected? */
+    SelectionMark = "selectionMark",
+    /** Country/region, normalized to ISO 3166-1 alpha-3 format (ex. USA). */
+    CountryRegion = "countryRegion",
+    /** Is signature present? */
+    Signature = "signature",
+    /** List of subfields of the same type. */
+    Array = "array",
+    /** Named list of subfields of potentially different types. */
+    Object = "object",
+    /** Currency amount with optional currency symbol and unit. */
+    Currency = "currency",
+    /** Parsed address. */
+    Address = "address",
+    /** Boolean value, normalized to true or false. */
+    Boolean = "boolean"
+}
+
+/** Known values of {@link DocumentFormulaKind} that the service accepts. */
+export declare enum KnownDocumentFormulaKind {
+    /** A formula embedded within the content of a paragraph. */
+    Inline = "inline",
+    /** A formula in display mode that takes up an entire line. */
+    Display = "display"
+}
+
+/** Known values of {@link DocumentSignatureType} that the service accepts. */
+export declare enum KnownDocumentSignatureType {
+    /** A signature is detected. */
+    Signed = "signed",
+    /** No signatures are detected. */
+    Unsigned = "unsigned"
+}
+
+/** Known values of {@link DocumentTableCellKind} that the service accepts. */
+export declare enum KnownDocumentTableCellKind {
+    /** Contains the main content/data. */
+    Content = "content",
+    /** Describes the content of the row. */
+    RowHeader = "rowHeader",
+    /** Describes the content of the column. */
+    ColumnHeader = "columnHeader",
+    /** Describes the row headers, usually located at the top left corner of a table. */
+    StubHead = "stubHead",
+    /** Describes the content in (parts of) the table. */
+    Description = "description"
+}
+
+/** Known values of {@link FontStyle} that the service accepts. */
+export declare enum KnownFontStyle {
+    /** Characters are represented normally. */
+    Normal = "normal",
+    /** Characters are visually slanted to the right. */
+    Italic = "italic"
+}
+
+/** Known values of {@link FontWeight} that the service accepts. */
+export declare enum KnownFontWeight {
+    /** Characters are represented normally. */
+    Normal = "normal",
+    /** Characters are represented with thicker strokes. */
+    Bold = "bold"
+}
+
+/** Known values of {@link LengthUnit} that the service accepts. */
+export declare enum KnownLengthUnit {
+    /** Length unit for image files. */
+    Pixel = "pixel",
+    /** Length unit for PDF files. */
+    Inch = "inch"
+}
+
+/** Known values of {@link OperationKind} that the service accepts. */
+export declare enum KnownOperationKind {
+    /** Build a new custom document model. */
+    DocumentModelBuild = "documentModelBuild",
+    /** Compose a new custom document model from existing models. */
+    DocumentModelCompose = "documentModelCompose",
+    /** Copy an existing document model to potentially a different resource, region, or subscription. */
+    DocumentModelCopyTo = "documentModelCopyTo",
+    /** Build a new custom classifier model. */
+    DocumentClassifierBuild = "documentClassifierBuild"
+}
+
+/** Known values of {@link ParagraphRole} that the service accepts. */
+export declare enum KnownParagraphRole {
+    /** Text near the top edge of the page. */
+    PageHeader = "pageHeader",
+    /** Text near the bottom edge of the page. */
+    PageFooter = "pageFooter",
+    /** Page number. */
+    PageNumber = "pageNumber",
+    /** Top-level title describing the entire document. */
+    Title = "title",
+    /** Sub heading describing a section of the document. */
+    SectionHeading = "sectionHeading",
+    /** A note usually placed after the main content on a page. */
+    Footnote = "footnote",
+    /** A block of formulas, often with shared alignment. */
+    FormulaBlock = "formulaBlock"
+}
+
+/** Known values of {@link SelectionMarkState} that the service accepts. */
+export declare enum KnownSelectionMarkState {
+    /** The selection mark is selected, often indicated by a check ✓ or cross X inside the selection mark. */
+    Selected = "selected",
+    /** The selection mark is not selected. */
+    Unselected = "unselected"
+}
+
+/**
+ * Defines values for LengthUnit. \
+ * {@link KnownLengthUnit} can be used interchangeably with LengthUnit,
+ *  this enum contains the known values that the service supports.
+ * ### Known values supported by the service
+ * **pixel**: Length unit for image files. \
+ * **inch**: Length unit for PDF files.
+ */
+export declare type LengthUnit = string;
+
+/**
+ * Options for listing models.
+ */
+export declare interface ListModelsOptions extends OperationOptions {
+}
+
+/**
+ * Options for listing operations.
+ */
+export declare interface ListOperationsOptions extends OperationOptions {
+}
+
+/**
+ * The set of fields common to all administration operations.
+ */
+export declare interface ModelAdministrationOperationStateCommon {
+    /**
+     * The status of the operation. One of:
+     *
+     * - "notStarted"
+     * - "running"
+     * - "succeeded"
+     * - "failed"
+     * - "canceled"
+     */
+    status: OperationStatus;
+    /**
+     * The API version used to train this model.
+     */
+    apiVersion?: string;
+    /**
+     * The unique ID of this operation.
+     */
+    operationId: string;
+    /**
+     * A number between 0 and 100 representing the progress of the operation.
+     */
+    percentCompleted: number;
+    /**
+     * The Date and Time that the operation was created.
+     */
+    createdOn: Date;
+    /**
+     * The date & time that the operation state was last modified.
+     */
+    lastUpdatedOn: Date;
+    /**
+     * Additional, user-defined key-value pairs associated with the model as metadata.
+     */
+    tags?: Record<string, string>;
+}
+
+/** Get Operation response object. */
+export declare interface OperationDetails {
+    /** Polymorphic discriminator, which specifies the different types this object can be */
+    kind: "documentModelBuild" | "documentModelCompose" | "documentModelCopyTo" | "documentClassifierBuild";
+    /** Operation ID */
+    operationId: string;
+    /** Operation status. */
+    status: OperationStatus;
+    /** Operation progress (0-100). */
+    percentCompleted?: number;
+    /** Date and time (UTC) when the operation was created. */
+    createdOn: Date;
+    /** Date and time (UTC) when the status was last updated. */
+    lastUpdatedOn: Date;
+    /** URL of the resource targeted by this operation. */
+    resourceLocation: string;
+    /** API version used to create this operation. */
+    apiVersion?: string;
+    /** List of key-value tag attributes associated with the document model. */
+    tags?: {
+        [propertyName: string]: string;
+    };
+    /** Encountered error. */
+    error?: ErrorModel;
+}
+
+/**
+ * Details about any of several different types of Form Recognizer management operations.
+ */
+export declare type OperationDetailsUnion = OperationDetails | DocumentModelBuildOperationDetails | DocumentModelComposeOperationDetails | DocumentModelCopyToOperationDetails | DocumentClassifierBuildOperationDetails;
+
+/**
+ * Defines values for OperationKind. \
+ * {@link KnownOperationKind} can be used interchangeably with OperationKind,
+ *  this enum contains the known values that the service supports.
+ * ### Known values supported by the service
+ * **documentModelBuild**: Build a new custom document model. \
+ * **documentModelCompose**: Compose a new custom document model from existing models. \
+ * **documentModelCopyTo**: Copy an existing document model to potentially a different resource, region, or subscription. \
+ * **documentClassifierBuild**: Build a new custom classifier model.
+ */
+export declare type OperationKind = string;
+
+/** Defines values for OperationStatus. */
+export declare type OperationStatus = "notStarted" | "running" | "failed" | "succeeded" | "canceled";
+
+/** Operation info. */
+export declare interface OperationSummary {
+    /** Operation ID */
+    operationId: string;
+    /** Operation status. */
+    status: OperationStatus;
+    /** Operation progress (0-100). */
+    percentCompleted?: number;
+    /** Date and time (UTC) when the operation was created. */
+    createdOn: Date;
+    /** Date and time (UTC) when the status was last updated. */
+    lastUpdatedOn: Date;
+    /** Type of operation. */
+    kind: OperationKind;
+    /** URL of the resource targeted by this operation. */
+    resourceLocation: string;
+    /** API version used to create this operation. */
+    apiVersion?: string;
+    /** List of key-value tag attributes associated with the document model. */
+    tags?: {
+        [propertyName: string]: string;
+    };
+}
+
+/**
+ * Defines values for ParagraphRole. \
+ * {@link KnownParagraphRole} can be used interchangeably with ParagraphRole,
+ *  this enum contains the known values that the service supports.
+ * ### Known values supported by the service
+ * **pageHeader**: Text near the top edge of the page. \
+ * **pageFooter**: Text near the bottom edge of the page. \
+ * **pageNumber**: Page number. \
+ * **title**: Top-level title describing the entire document. \
+ * **sectionHeading**: Sub heading describing a section of the document. \
+ * **footnote**: A note usually placed after the main content on a page. \
+ * **formulaBlock**: A block of formulas, often with shared alignment.
+ */
+export declare type ParagraphRole = string;
+
+/**
+ * Represents a point used to define bounding polygons. The unit is either 'pixel' or 'inch' (See {@link LengthUnit}).
+ */
+export declare interface Point2D {
+    /**
+     * x coordinate - relative from the left side of the page
+     */
+    x: number;
+    /**
+     * y coordinate - relative from the top of the page
+     */
+    y: number;
+}
+
+/**
+ * Options for long-running operations (pollers) in the Form Recognizer clients.
+ */
+export declare interface PollerOptions<TState extends PollOperationState<unknown>> extends OperationOptions {
+    /**
+     * The amount of time to wait (in milliseconds) between subsequent requests relating to the same operation.
+     */
+    updateIntervalInMs?: number;
+    /**
+     * A serialized poller state. If provided, the polling operation will be resumed from the given state instead of
+     * started as if it were a new operation.
+     */
+    resumeFrom?: string;
+    /**
+     * An optional initial progress handler that will be called when the poller state updates. This handler will be called
+     * once immediately after the poller state is initialized.
+     */
+    onProgress?: (state: TState) => void;
+}
+
+/** Quota used, limit, and next reset date/time. */
+export declare interface QuotaDetails {
+    /** Amount of the resource quota used. */
+    used: number;
+    /** Resource quota limit. */
+    quota: number;
+    /** Date/time when the resource quota usage will be reset. */
+    quotaResetOn: Date;
+}
+
+/** General information regarding the current resource. */
+export declare interface ResourceDetails {
+    /** Details regarding custom document models. */
+    customDocumentModels: CustomDocumentModelsDetails;
+    /** Quota used, limit, and next reset date/time. */
+    customNeuralDocumentModelBuilds: QuotaDetails;
+}
+
+/**
+ * Defines values for SelectionMarkState. \
+ * {@link KnownSelectionMarkState} can be used interchangeably with SelectionMarkState,
+ *  this enum contains the known values that the service supports.
+ * ### Known values supported by the service
+ * **selected**: The selection mark is selected, often indicated by a check ✓ or cross X inside the selection mark. \
+ * **unselected**: The selection mark is not selected.
+ */
+export declare type SelectionMarkState = string;
+
+/**
+ * Valid string index types supported by the Form Recognizer service and SDK clients.
+ */
+export declare type StringIndexType = (typeof StringIndexType)[keyof typeof StringIndexType];
+
+/**
+ * Supported values of StringIndexType.
+ */
+export declare const StringIndexType: {
+    /**
+     * UTF-16 code units
+     */
+    readonly Utf16CodeUnit: "utf16CodeUnit";
+    /**
+     * Unicode code points
+     */
+    readonly UnicodeCodePoint: "unicodeCodePoint";
+};
+
+export { }

@@ -64,7 +64,6 @@ router.post("/login", async (req, res) => {
     }
 });
 
-const Document = require("../models/Document");
 
 router.post("/logout", async (req, res) => {
     try {
