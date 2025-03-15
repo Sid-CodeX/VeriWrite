@@ -1,33 +1,46 @@
-const { AzureKeyCredential, DocumentAnalysisClient } = require("@azure/ai-form-recognizer");
+const axios = require("axios");
 const fs = require("fs");
+const FormData = require("form-data");
 
-// Load environment variables
-const endpoint = process.env.AZURE_OCR_ENDPOINT;
-const apiKey = process.env.AZURE_OCR_KEY;
-
-// Initialize Azure OCR client
-const client = new DocumentAnalysisClient(endpoint, new AzureKeyCredential(apiKey));
-
-async function extractTextFromImage(imagePath) {
+const extractTextFromImage = async (filePath) => {
     try {
-        const imageBuffer = fs.readFileSync(imagePath);
+        const imageBuffer = fs.readFileSync(filePath);
 
-        // Send image for OCR processing
-        const poller = await client.beginAnalyzeDocument("prebuilt-read", imageBuffer);
-        const result = await poller.pollUntilDone();
+        const response = await axios.post(
+            "https://centralindia.api.cognitive.microsoft.com/vision/v3.2/read/analyze", // Correct API
+            imageBuffer,
+            {
+                headers: {
+                    "Ocp-Apim-Subscription-Key": process.env.AZURE_OCR_KEY,  // Ensure you use the correct API Key
+                    "Content-Type": "application/octet-stream",
+                },
+            }
+        );
 
-        if (!result || !result.pages) {
-            return "";
+        if (response.status === 202) {
+            const operationUrl = response.headers["operation-location"];
+
+            // Poll for the result
+            await new Promise((resolve) => setTimeout(resolve, 2000));
+
+            const resultResponse = await axios.get(operationUrl, {
+                headers: {
+                    "Ocp-Apim-Subscription-Key": process.env.AZURE_OCR_KEY,
+                },
+            });
+
+            if (resultResponse.data.status === "succeeded") {
+                return resultResponse.data.analyzeResult.readResults
+                    .map((page) => page.lines.map((line) => line.text).join("\n"))
+                    .join("\n");
+            }
         }
 
-        // Extract and return the text
-        return result.pages
-            .map(page => page.lines.map(line => line.content).join("\n"))
-            .join("\n");
+        return ""; // Return empty string if no text found
     } catch (error) {
-        console.error("OCR Error:", error);
+        console.error("Azure OCR Error:", error.response?.data || error.message);
         return "";
     }
-}
+};
 
 module.exports = { extractTextFromImage };

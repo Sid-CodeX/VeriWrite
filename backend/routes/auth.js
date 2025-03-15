@@ -2,6 +2,7 @@ const express = require("express");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
+const OCRuploadcheck = require("../models/OCRuploadcheck");
 require("dotenv").config();
 
 const router = express.Router();
@@ -43,12 +44,15 @@ router.post("/login", async (req, res) => {
     }
 });
 
-// User Logout - Delete extracted texts
+// User Logout - Delete Extracted Text
 router.post("/logout", async (req, res) => {
     try {
-        const teacherId = req.body.teacherId;
-        await Document.deleteMany({ teacherId });
-        res.status(200).json({ message: "Logged out and extracted texts deleted" });
+        const { teacherId } = req.body;
+        
+        // Delete extracted text from temporary storage
+        await OCRuploadcheck.deleteMany({ teacherId });
+
+        res.status(200).json({ message: "Logged out, extracted texts deleted" });
     } catch (error) {
         console.error("Logout Error:", error);
         res.status(500).json({ error: "Internal Server Error" });
