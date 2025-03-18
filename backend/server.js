@@ -7,8 +7,9 @@ const morgan = require("morgan");
 
 dotenv.config();
 
-const authRoutes = require("./routes/auth");
-const ocrUploadRoutes = require("./routes/OCRuploadcheck"); // Ensure the file exists
+const authRoutes = require("./routes/auth"); // Ensure correct path
+const ocrUploadRoutes = require("./routes/OCRuploadcheck"); // Ensure correct filename
+const courseRoutes = require("./routes/courseRoutes");
 
 const app = express();
 
@@ -21,6 +22,7 @@ app.use(cors({ origin: process.env.CLIENT_URL || "*" }));
 // ✅ Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/ocr", ocrUploadRoutes);
+app.use("/api/courses", courseRoutes);
 
 // ✅ Health Check
 app.get("/", (req, res) => res.status(200).json({ message: "✅ VeriWrite API is running!" }));
@@ -31,13 +33,23 @@ const connectDB = async () => {
     await mongoose.connect(process.env.MONGO_URI, {
       useNewUrlParser: true,
       useUnifiedTopology: true,
+      serverSelectionTimeoutMS: 5000, // Timeout if MongoDB is unreachable
     });
+    
     console.log("✅ MongoDB Connected Successfully");
   } catch (err) {
     console.error("❌ MongoDB Connection Error:", err);
     process.exit(1); // Exit process with failure
   }
 };
+
+// ✅ Graceful Shutdown Handling
+process.on("SIGINT", async () => {
+  console.log("🛑 Closing MongoDB Connection...");
+  await mongoose.connection.close();
+  console.log("✅ MongoDB Disconnected. Exiting...");
+  process.exit(0);
+});
 
 // ✅ Start Database Connection
 connectDB();
