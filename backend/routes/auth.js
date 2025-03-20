@@ -6,20 +6,25 @@ require("dotenv").config();
 
 const router = express.Router();
 
-// Generate JWT Token
-const generateToken = (user) => {
-    return jwt.sign(
-        { id: user._id, role: user.role },
-        process.env.JWT_SECRET,
-        { expiresIn: "7d" }
-    );
+// ✅ Middleware to verify JWT token
+const authenticateToken = (req, res, next) => {
+    const token = req.header("Authorization");
+    if (!token) return res.status(401).json({ error: "Access denied. No token provided." });
+    
+    try {
+        const decoded = jwt.verify(token.split(" ")[1], process.env.JWT_SECRET);
+        req.user = decoded;
+        next();
+    } catch (error) {
+        res.status(403).json({ error: "Invalid or expired token." });
+    }
 };
 
-// User Signup
+// ✅ User Signup
 router.post("/signup", async (req, res) => {
     try {
         const { name, email, password, role } = req.body;
-        const emailLower = email.toLowerCase(); // ✅ Convert email to lowercase
+        const emailLower = email.toLowerCase();
 
         if (await User.findOne({ email: emailLower })) {
             return res.status(400).json({ error: "Email already in use" });
@@ -35,9 +40,7 @@ router.post("/signup", async (req, res) => {
     }
 });
 
-
-
-// User Login
+// ✅ User Login (JWT-based)
 router.post("/login", async (req, res) => {
     try {
         const { email, password } = req.body;
@@ -47,20 +50,19 @@ router.post("/login", async (req, res) => {
             return res.status(400).json({ error: "Invalid email or password" });
         }
 
-        const token = generateToken(user);
-        res.json({ token, user });
+        // ✅ Generate JWT token
+        const token = jwt.sign({ userId: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: "1d" });
+        res.json({ message: "Login successful", token, user: { name: user.name, email: user.email, role: user.role } });
     } catch (error) {
         res.status(500).json({ error: "Internal Server Error" });
     }
 });
 
-// User Logout (Handled on frontend by clearing token)
-
-// Update Profile
-router.put("/profile", async (req, res) => {
+// ✅ Profile Update
+router.put("/profile", authenticateToken, async (req, res) => {
     try {
-        const { userId, name, email } = req.body;
-        const user = await User.findByIdAndUpdate(userId, { name, email }, { new: true });
+        const { name } = req.body;
+        const user = await User.findByIdAndUpdate(req.user.userId, { name }, { new: true });
 
         if (!user) return res.status(404).json({ error: "User not found" });
 
@@ -70,11 +72,11 @@ router.put("/profile", async (req, res) => {
     }
 });
 
-// Change Password
-router.put("/change-password", async (req, res) => {
+// ✅ Change Password
+router.put("/change-password", authenticateToken, async (req, res) => {
     try {
-        const { userId, currentPassword, newPassword } = req.body;
-        const user = await User.findById(userId);
+        const { currentPassword, newPassword } = req.body;
+        const user = await User.findById(req.user.userId);
 
         if (!user || !(await bcrypt.compare(currentPassword, user.password))) {
             return res.status(400).json({ error: "Incorrect current password" });
@@ -84,21 +86,6 @@ router.put("/change-password", async (req, res) => {
         await user.save();
 
         res.json({ message: "Password changed successfully" });
-    } catch (error) {
-        res.status(500).json({ error: "Internal Server Error" });
-    }
-});
-
-// Reset Password (Send Email - To Be Implemented)
-router.post("/reset-password", async (req, res) => {
-    try {
-        const { email } = req.body;
-        const user = await User.findOne({ email });
-
-        if (!user) return res.status(404).json({ error: "Email not found" });
-
-        // Here, you would send a password reset email with a token
-        res.json({ message: "Password reset instructions sent to email" });
     } catch (error) {
         res.status(500).json({ error: "Internal Server Error" });
     }
