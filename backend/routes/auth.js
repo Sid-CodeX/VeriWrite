@@ -58,6 +58,26 @@ router.post("/login", async (req, res) => {
     }
 });
 
+
+router.post("/logout", authenticateToken, async (req, res) => {
+    try {
+      const teacherId = req.teacherId;
+      const reportPath = `temp/reports/plagiarism_report_${teacherId}.pdf`;
+  
+      // Delete the report file if it exists
+      await fs.unlink(reportPath).catch(() => {});
+  
+      // Also delete extracted text entries from DB
+      await OCRuploadcheck.deleteMany({ teacherId });
+  
+      res.status(200).json({ message: "Logged out successfully, report deleted" });
+    } catch (error) {
+      console.error("Logout Error:", error);
+      res.status(500).json({ error: "Internal Server Error" });
+    }
+  });
+  
+
 // ✅ Profile Update
 router.put("/profile", authenticateToken, async (req, res) => {
     try {

@@ -27,6 +27,16 @@ app.use("/api/courses", courseRoutes);
 // ✅ Health Check
 app.get("/", (req, res) => res.status(200).json({ message: "✅ VeriWrite API is running!" }));
 
+// ✅ Periodic Cleanup: Delete old reports every 1 hour
+setInterval(async () => {
+  try {
+    await fs.rm("temp/reports", { recursive: true, force: true });
+    console.log("🗑️ Old reports deleted successfully.");
+  } catch (err) {
+    console.error("❌ Error deleting reports:", err);
+  }
+}, 1000 * 60 * 60); // Runs every 1 hour
+
 // ✅ MongoDB Connection with Error Handling
 const connectDB = async () => {
   try {
