@@ -11,14 +11,12 @@ const OCresult = require("../models/OCresult");
 const SerpApiUsage = require("../models/SerpApiUsage");
 const fetch = require("node-fetch");
 const PDFDocument = require("pdfkit");
-const Summarizer = require("node-summarizer");  // Import the node-summarizer package
-const stringSimilarity = require("string-similarity"); // Add string similarity library
+const stringSimilarity = require("string-similarity");
 require("dotenv").config();
 
 const router = express.Router();
 const upload = multer({ dest: "temp/" });
 
-// Middleware for authentication
 const authenticate = (req, res, next) => {
   try {
     const token = req.headers.authorization?.split(" ")[1];
@@ -32,7 +30,6 @@ const authenticate = (req, res, next) => {
   }
 };
 
-// Middleware to enforce global 90-request limit
 const checkApiLimit = async (req, res, next) => {
   const now = new Date();
   const currentMonth = now.getMonth() + 1;
@@ -53,7 +50,6 @@ const checkApiLimit = async (req, res, next) => {
   next();
 };
 
-// Function to perform online search using SerpAPI
 const searchOnlineForPlagiarism = async (query) => {
   const serpApiKey = process.env.SERPAPI_KEY;
   const url = `https://serpapi.com/search.json?q=${encodeURIComponent(query)}&api_key=${serpApiKey}`;
@@ -74,19 +70,18 @@ const searchOnlineForPlagiarism = async (query) => {
   }
 };
 
-// Function to summarize text using node-summarizer
-const summarizeText = (text) => {
-  const summarizer = new Summarizer();
-  const summary = summarizer.getSummary(text);
-  return summary;
+const chunkText = (text, chunkSize = 500) => {
+  const chunks = [];
+  for (let i = 0; i < text.length; i += chunkSize) {
+    chunks.push(text.substring(i, i + chunkSize));
+  }
+  return chunks;
 };
 
-// Function to calculate the similarity percentage between two strings
 const calculateSimilarity = (text1, text2) => {
   return stringSimilarity.compareTwoStrings(text1, text2) * 100;
 };
 
-// Upload & Online Check API
 router.post("/online-check", authenticate, checkApiLimit, upload.single("file"), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: "No file uploaded" });
@@ -116,26 +111,22 @@ router.post("/online-check", authenticate, checkApiLimit, upload.single("file"),
 
       if (!extractedText.trim()) throw new Error(`No text extracted from ${file.originalname}.`);
 
-      // Summarize the extracted text before checking for plagiarism
-      const summarizedText = summarizeText(extractedText);
+      const textChunks = chunkText(extractedText);
+      let matchesWithSimilarity = [];
 
-      // Search online for plagiarism (summarized text)
-      const searchResults = await searchOnlineForPlagiarism(summarizedText);
+      for (const chunk of textChunks) {
+        const searchResults = await searchOnlineForPlagiarism(chunk);
+        searchResults.forEach((match) => {
+          const similarity = calculateSimilarity(chunk, match.snippet);
+          matchesWithSimilarity.push({ ...match, similarity });
+        });
+      }
 
-      // Calculate similarity for each match
-      const matchesWithSimilarity = searchResults.map((match) => {
-        const similarity = calculateSimilarity(summarizedText, match.snippet);
-        return { ...match, similarity };
-      });
-
-      // Sort matches by similarity, from highest to lowest
       matchesWithSimilarity.sort((a, b) => b.similarity - a.similarity);
 
-      // Update API usage count
       req.apiUsage.count += 1;
       await req.apiUsage.save();
 
-      // Save extracted text and matches in the database
       const newCheck = new OCRonlinecheck({
         teacherId,
         fileName: file.originalname,
@@ -145,14 +136,11 @@ router.post("/online-check", authenticate, checkApiLimit, upload.single("file"),
       });
       await newCheck.save();
 
-      // Generate PDF Report
       const doc = new PDFDocument({ margin: 50 });
       let pdfBuffers = [];
       doc.on("data", pdfBuffers.push.bind(pdfBuffers));
       doc.on("end", async () => {
         const pdfBuffer = Buffer.concat(pdfBuffers);
-
-        // Save PDF Report in OCresult collection
         const newReport = new OCresult({
           teacherId,
           results: matchesWithSimilarity,
@@ -160,36 +148,44 @@ router.post("/online-check", authenticate, checkApiLimit, upload.single("file"),
           createdAt: new Date(),
         });
         await newReport.save();
-
         res.json({ message: "Online plagiarism check completed. Report saved." });
       });
 
-      // Report Header
       doc.fontSize(18).text("Online Plagiarism Report", { align: "center", underline: true }).moveDown();
       doc.fontSize(14).text(`Generated on: ${new Date().toLocaleString()}`, { align: "left" }).moveDown();
       doc.fontSize(16).text(`File: ${file.originalname}`, { bold: true, align: "left" }).moveDown();
-
-      // Extracted Text Section
-      doc.fontSize(14).text("Extracted Text:", { underline: true }).moveDown();
+      doc.fontSize(14).fillColor("blue").text("Extracted Text:", { underline: true }).moveDown();
       doc.fillColor("black").fontSize(12).text(extractedText, { align: "left" }).moveDown();
+      doc.fontSize(14).fillColor("red").text("Online Matches:", { underline: true }).moveDown();
 
-      // Online Matches Section
-      doc.fillColor("black").fontSize(14).text("Online Matches:", { align: "left", underline: true }).moveDown();
-      matchesWithSimilarity.forEach((match) => {
-        doc.fillColor("red").fontSize(12).text(`${match.title} - ${match.link}`, { align: "left" }).moveDown();
-        doc.fillColor("black").fontSize(12).text(`Snippet: ${match.snippet}`, { align: "left" }).moveDown();
-        doc.fillColor("blue").fontSize(12).text(`Similarity: ${match.similarity.toFixed(2)}%`, { align: "left" }).moveDown();
+      matchesWithSimilarity.forEach((match, index) => {
+        doc.moveDown(1);
+        
+        // Bold match title
+        doc.fontSize(12).fillColor("black").font("Helvetica-Bold").text(match.title, { align: "left" });
+        
+        // Clickable link
+        doc.fontSize(12).fillColor("blue").text(match.link, { align: "left", link: match.link, underline: true });
+        
+        // Snippet content
+        doc.fillColor("black").font("Helvetica").text(`Snippet: ${match.snippet}`, { align: "left" }).moveDown(0.5);
+        
+        // Similarity score
+        doc.fillColor("green").fontSize(12).text(`Similarity: ${match.similarity.toFixed(2)}%`, { align: "left" }).moveDown(1);
+        
+        // Separator Line
+        if (index < matchesWithSimilarity.length - 1) {
+          doc.moveTo(50, doc.y).lineTo(550, doc.y).stroke();  // Draws a horizontal line
+          doc.moveDown(1);
+        }
       });
 
       doc.end();
-    } catch (error) {
-      console.error(`Error processing ${file.originalname}:`, error);
-      return res.status(500).json({ error: `Error processing ${file.originalname}` });
+
     } finally {
       await fs.unlink(filePath);
     }
   } catch (error) {
-    console.error("Online Plagiarism Check Error:", error);
     res.status(500).json({ error: "Internal Server Error" });
   }
 });
