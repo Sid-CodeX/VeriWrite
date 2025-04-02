@@ -10,6 +10,7 @@ dotenv.config();
 const authRoutes = require("./routes/auth"); // Ensure correct path
 const ocrUploadRoutes = require("./routes/OCRuploadcheck"); // Ensure correct filename
 const courseRoutes = require("./routes/courseRoutes");
+const onlineCheckRoutes = require("./routes/OCRonlinecheck");
 
 const app = express();
 
@@ -21,8 +22,9 @@ app.use(cors({ origin: process.env.CLIENT_URL || "*" }));
 
 // ✅ Routes
 app.use("/api/auth", authRoutes);
-app.use("/api/ocr", ocrUploadRoutes);
+app.use("/api/uploadcheck", ocrUploadRoutes);
 app.use("/api/courses", courseRoutes);
+app.use("/api/onlinecheck", onlineCheckRoutes);
 
 // ✅ Health Check
 app.get("/", (req, res) => res.status(200).json({ message: "✅ VeriWrite API is running!" }));

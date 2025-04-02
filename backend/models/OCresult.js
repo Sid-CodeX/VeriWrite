@@ -1,4 +1,6 @@
-const ucResultSchema = new mongoose.Schema({
+const mongoose = require("mongoose");
+
+const OCresultSchema = new mongoose.Schema({
     teacherId: { type: mongoose.Schema.Types.ObjectId, ref: "Teacher", required: true },
     results: { 
       type: [{ title: String, link: String, snippet: String }],
@@ -8,4 +10,4 @@ const ucResultSchema = new mongoose.Schema({
     createdAt: { type: Date, default: Date.now, expires: 7200 }, // Auto-delete after 2 hours
   });
   
-  module.exports = mongoose.model("UCresult", ucResultSchema);
+  module.exports = mongoose.model("OCresult", OCresultSchema);
