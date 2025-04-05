@@ -189,19 +189,20 @@ router.get("/download-report", authenticate, async (req, res) => {
   }
 });
 
-// ✅ Download Report API
-router.get("/download-report", authenticate, async (req, res) => {
+// ✅ View Report API (Opens PDF in Browser)
+router.get("/view-report", authenticate, async (req, res) => {
   try {
     const report = await UCresult.findOne({ teacherId: req.teacherId });
     if (!report) return res.status(400).json({ error: "No report found" });
 
-    res.setHeader("Content-Disposition", 'attachment; filename="plagiarism_report.pdf"');
+    res.setHeader("Content-Disposition", 'inline; filename="plagiarism_report.pdf"');
     res.setHeader("Content-Type", "application/pdf");
     res.send(report.reportFile);
   } catch (error) {
-    console.error("PDF Download Error:", error);
+    console.error("PDF View Error:", error);
     res.status(500).json({ error: "Internal Server Error" });
   }
 });
+
 
 module.exports = router;

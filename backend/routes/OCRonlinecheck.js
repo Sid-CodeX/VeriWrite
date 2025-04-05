@@ -148,7 +148,29 @@ router.post("/online-check", authenticate, checkApiLimit, upload.single("file"),
           createdAt: new Date(),
         });
         await newReport.save();
-        res.json({ message: "Online plagiarism check completed. Report saved." });
+        // Calculate overall similarity score
+        const overallScore = matchesWithSimilarity.length > 0
+            ? matchesWithSimilarity.reduce((max, match) => Math.max(max, match.similarity), 0)
+            : 0;
+
+        // Function to determine similarity level
+        const getSimilarityLevel = (similarity) => {
+            if (similarity < 50) return "Low";
+            if (similarity < 75) return "Moderate";
+            return "High";
+        };
+
+        // Return top 3 matches in JSON response
+        res.json({
+            message: "Online plagiarism check completed. Report saved.",
+            score: overallScore,
+            matches: matchesWithSimilarity.slice(0, 3).map(match => ({
+                title: match.title,
+                link: match.link,
+                similarity: match.similarity,
+                level: getSimilarityLevel(match.similarity),
+            })),
+        });
       });
 
       doc.fontSize(18).text("Online Plagiarism Report", { align: "center", underline: true }).moveDown();
@@ -208,5 +230,23 @@ router.get("/download-report", authenticate, async (req, res) => {
     res.status(500).json({ error: "Failed to retrieve report" });
   }
 });
+
+// ✅ View Report API for OCR Online Check (Opens PDF in Browser)
+router.get("/view-report", authenticate, async (req, res) => {
+  try {
+    const report = await OCresult.findOne({ teacherId: req.teacherId }).sort({ createdAt: -1 });
+
+    if (!report) return res.status(404).json({ error: "No report found" });
+
+    res.setHeader("Content-Disposition", 'inline; filename="Online_Check_Report.pdf"');
+    res.setHeader("Content-Type", "application/pdf");
+    res.send(report.reportFile);
+  } catch (error) {
+    console.error("Error viewing report:", error);
+    res.status(500).json({ error: "Failed to view report" });
+  }
+});
+
+
 
 module.exports = router;
