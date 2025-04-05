@@ -1,6 +1,6 @@
 
 import { Link } from 'react-router-dom';
-import { Mail, Phone, MapPin, Github } from 'lucide-react';
+import { Mail, Phone, MapPin } from 'lucide-react';
 
 const Footer = () => {
   return (
@@ -12,11 +12,6 @@ const Footer = () => {
             <p className="text-muted-foreground text-sm mb-4">
               An advanced plagiarism detection platform for educational institutions.
             </p>
-            <div className="flex space-x-4">
-              <a href="#" className="text-muted-foreground hover:text-foreground transition-colors">
-                <Github size={20} />
-              </a>
-            </div>
           </div>
           
           <div>

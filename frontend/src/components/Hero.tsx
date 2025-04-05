@@ -49,8 +49,8 @@ const Hero = ({ className }: HeroProps) => {
         </h1>
 
         <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-10 opacity-0 animate-fade-in" style={{ animationDelay: '0.7s', animationFillMode: 'forwards' }}>
-          Powerful plagiarism detection with Google Classroom integration. 
-          Streamlined for educators, designed for academic excellence.
+          Powerful plagiarism detection platform tailored for educators. 
+          Streamlined for academic excellence.
         </p>
 
         <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-16 opacity-0 animate-fade-in" style={{ animationDelay: '0.9s', animationFillMode: 'forwards' }}>
@@ -84,8 +84,8 @@ const Hero = ({ className }: HeroProps) => {
                 <path d="M8 12H16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                 <path d="M12 8V16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>,
-              title: "Google Classroom Integration",
-              description: "Seamlessly connect to your classroom for effortless document management",
+              title: "Integrated Classroom System",
+              description: "Seamlessly manage your courses and assignments in one place",
               delay: '1.3s'
             },
             {

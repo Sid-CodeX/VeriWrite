@@ -1,11 +1,12 @@
-
 import { useState, useEffect } from 'react';
 import { useAuth, UserRole } from '@/context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import Navbar from '@/components/Navbar';
+import Footer from '@/components/Footer';
 import GlassmorphismCard from '@/components/ui/GlassmorphismCard';
 import CustomButton from '@/components/ui/CustomButton';
 import { Mail, Lock, User, BookOpen, GraduationCap } from 'lucide-react';
+import ForgotPasswordModal from '@/components/auth/ForgotPasswordModal';
 
 type AuthMode = 'signin' | 'signup';
 
@@ -17,15 +18,14 @@ const Auth = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
+  const [isForgotPasswordOpen, setIsForgotPasswordOpen] = useState(false);
 
-  // Redirect if already authenticated
   useEffect(() => {
     if (isAuthenticated) {
       navigate('/');
     }
   }, [isAuthenticated, navigate]);
 
-  // Scroll to top on page load
   useEffect(() => {
     window.scrollTo(0, 0);
   }, []);
@@ -42,7 +42,6 @@ const Auth = () => {
 
   const toggleMode = () => {
     setMode(mode === 'signin' ? 'signup' : 'signin');
-    // Reset form when switching modes
     setEmail('');
     setPassword('');
     setName('');
@@ -53,7 +52,6 @@ const Auth = () => {
       <Navbar />
       
       <main className="flex-grow pt-24 pb-16 px-6 relative">
-        {/* Decorative background elements */}
         <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
           <div className="absolute -top-20 -left-20 w-96 h-96 bg-veri/5 rounded-full blur-3xl"></div>
           <div className="absolute top-1/3 -right-20 w-96 h-96 bg-write/5 rounded-full blur-3xl"></div>
@@ -66,7 +64,6 @@ const Auth = () => {
           </h1>
           
           <GlassmorphismCard className="p-8 shadow-xl" intensity="heavy">
-            {/* Role Selection */}
             <div className="mb-6 animate-slide-up">
               <p className="text-sm font-medium mb-2">Role:</p>
               <div className="grid grid-cols-2 gap-4">
@@ -137,7 +134,18 @@ const Auth = () => {
               </div>
               
               <div className="animate-slide-up" style={{ animationDelay: '300ms' }}>
-                <label htmlFor="password" className="block text-sm font-medium mb-1">Password</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label htmlFor="password" className="block text-sm font-medium">Password</label>
+                  {mode === 'signin' && (
+                    <button 
+                      type="button"
+                      onClick={() => setIsForgotPasswordOpen(true)}
+                      className="text-xs text-veri hover:underline"
+                    >
+                      Forgot Password?
+                    </button>
+                  )}
+                </div>
                 <div className="relative">
                   <span className="absolute left-3 top-3 text-muted-foreground">
                     <Lock size={18} />
@@ -183,14 +191,12 @@ const Auth = () => {
         </div>
       </main>
       
-      {/* Footer */}
-      <footer className="bg-secondary/70 backdrop-blur-sm py-6 px-6 border-t border-border/50">
-        <div className="container mx-auto text-center">
-          <p className="text-muted-foreground text-sm">
-            © {new Date().getFullYear()} VeriWrite. All rights reserved.
-          </p>
-        </div>
-      </footer>
+      <Footer />
+      
+      <ForgotPasswordModal 
+        isOpen={isForgotPasswordOpen}
+        onClose={() => setIsForgotPasswordOpen(false)}
+      />
     </div>
   );
 };

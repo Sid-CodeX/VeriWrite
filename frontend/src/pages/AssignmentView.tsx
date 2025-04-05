@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Calendar, Users, ArrowLeft, FileText, Download, Eye, BarChart } from 'lucide-react';
@@ -7,6 +6,7 @@ import { useToast } from '@/hooks/use-toast';
 import Navbar from '@/components/Navbar';
 import CustomButton from '@/components/ui/CustomButton';
 import GlassmorphismCard from '@/components/ui/GlassmorphismCard';
+import Footer from '@/components/Footer';
 import { format } from 'date-fns';
 
 interface Student {
@@ -44,15 +44,12 @@ const AssignmentView = () => {
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [plagiarismReportUrl, setPlagiarismReportUrl] = useState<string | null>(null);
 
-  // Scroll to top on page load
   useEffect(() => {
     window.scrollTo(0, 0);
   }, []);
 
-  // Mock data fetch for course and assignment details
   useEffect(() => {
     if (courseId && assignmentId) {
-      // In a real app, this would be API calls
       setCourse({
         id: courseId,
         name: courseId === '1' ? 'Advanced Programming' : 
@@ -70,7 +67,6 @@ const AssignmentView = () => {
         description: 'This assignment tests the understanding of key concepts covered in the course. Students are expected to submit their work by the deadline.'
       });
 
-      // Mock student data
       setStudents([
         {
           id: '1',
@@ -124,11 +120,9 @@ const AssignmentView = () => {
   const handleCheckPlagiarism = (studentId: string) => {
     setIsCheckingPlagiarism(studentId);
     
-    // Simulate plagiarism check
     setTimeout(() => {
       setStudents(prev => prev.map(student => {
         if (student.id === studentId) {
-          // Generate random score for demo
           const score = Math.floor(Math.random() * 80);
           return {
             ...student,
@@ -150,13 +144,11 @@ const AssignmentView = () => {
 
   const handleViewReport = (student: Student) => {
     setSelectedStudent(student);
-    // In a real app, this would fetch the actual report URL
     setPlagiarismReportUrl(`/mock-report-${student.id}.pdf`);
     setShowReportModal(true);
   };
 
   const handleDownloadReport = (student: Student) => {
-    // In a real app, this would trigger a download of the actual PDF report
     toast({
       title: "Report downloaded",
       description: `Plagiarism report for ${student.name} has been downloaded.`,
@@ -172,11 +164,11 @@ const AssignmentView = () => {
             <p>Loading details...</p>
           </div>
         </main>
+        <Footer />
       </div>
     );
   }
 
-  // Calculate submission stats
   const submittedCount = students.filter(s => s.submissionDate).length;
   const pendingCount = students.length - submittedCount;
   const checkedCount = students.filter(s => s.reportGenerated).length;
@@ -213,7 +205,6 @@ const AssignmentView = () => {
             </div>
           </div>
           
-          {/* Assignment details */}
           <GlassmorphismCard className="mb-8 p-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
@@ -250,7 +241,6 @@ const AssignmentView = () => {
             </div>
           </GlassmorphismCard>
           
-          {/* Students submissions */}
           <div className="mb-6 flex items-center justify-between">
             <h2 className="text-xl font-bold">Student Submissions</h2>
           </div>
@@ -385,7 +375,6 @@ const AssignmentView = () => {
         </div>
       </main>
       
-      {/* Report modal */}
       {showReportModal && selectedStudent && (
         <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <GlassmorphismCard className="w-full max-w-4xl max-h-[90vh] overflow-auto p-6">
@@ -470,7 +459,6 @@ const AssignmentView = () => {
               </div>
             </div>
             
-            {/* Mock report content */}
             <div className="space-y-6">
               <section>
                 <h3 className="text-lg font-semibold mb-3">Summary</h3>
@@ -542,14 +530,7 @@ const AssignmentView = () => {
         </div>
       )}
       
-      {/* Simple footer */}
-      <footer className="bg-secondary py-6 px-6">
-        <div className="container mx-auto text-center">
-          <p className="text-muted-foreground text-sm">
-            © {new Date().getFullYear()} VeriWrite. All rights reserved.
-          </p>
-        </div>
-      </footer>
+      <Footer />
     </div>
   );
 };

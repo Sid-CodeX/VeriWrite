@@ -1,14 +1,25 @@
 
 import { useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/context/AuthContext';
 import Navbar from '@/components/Navbar';
 import CustomButton from '@/components/ui/CustomButton';
 import GlassmorphismCard from '@/components/ui/GlassmorphismCard';
-import { Mail, Phone, MapPin, Send } from 'lucide-react';
+import { Mail, Phone, MapPin, Send, LogIn, UserPlus } from 'lucide-react';
 import Footer from '@/components/Footer';
+import { 
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle
+} from '@/components/ui/dialog';
+import { useNavigate } from 'react-router-dom';
 
 const Contact = () => {
   const { toast } = useToast();
+  const { isAuthenticated } = useAuth();
+  const navigate = useNavigate();
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -16,6 +27,7 @@ const Contact = () => {
     message: ''
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showLoginDialog, setShowLoginDialog] = useState(false);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -24,6 +36,12 @@ const Contact = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!isAuthenticated) {
+      setShowLoginDialog(true);
+      return;
+    }
+    
     setIsSubmitting(true);
     
     // Simulate sending email
@@ -42,6 +60,16 @@ const Contact = () => {
         message: ''
       });
     }, 1500);
+  };
+
+  const handleLogin = () => {
+    navigate('/auth');
+    setShowLoginDialog(false);
+  };
+
+  const handleSignup = () => {
+    navigate('/auth?mode=signup');
+    setShowLoginDialog(false);
   };
 
   return (
@@ -204,6 +232,35 @@ const Contact = () => {
       </main>
       
       <Footer />
+      
+      {/* Login Dialog */}
+      <Dialog open={showLoginDialog} onOpenChange={setShowLoginDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Authentication Required</DialogTitle>
+            <DialogDescription>
+              Please log in to contact us. We need to verify your identity before you can send messages.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-4 sm:flex-row sm:justify-center mt-6">
+            <CustomButton
+              onClick={handleLogin}
+              icon={<LogIn size={16} />}
+              className="w-full sm:w-auto"
+            >
+              Log In
+            </CustomButton>
+            <CustomButton
+              onClick={handleSignup}
+              icon={<UserPlus size={16} />}
+              variant="outline"
+              className="w-full sm:w-auto"
+            >
+              Sign Up
+            </CustomButton>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

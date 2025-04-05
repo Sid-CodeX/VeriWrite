@@ -13,7 +13,16 @@ const UploadCheck = () => {
   const [isDragging, setIsDragging] = useState(false);
   const [files, setFiles] = useState<File[]>([]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [results, setResults] = useState<null | { score: number; matches: number }>(null);
+  
+  const [results, setResults] = useState<null | {
+    file1: string;
+    file2: string;
+    similarity: string;
+    level: string;
+    text1: { text: string; highlight: boolean }[];
+    text2: { text: string; highlight: boolean }[];
+  }[]>(null);
+
   const [activeStep, setActiveStep] = useState<number>(0);
 
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
@@ -42,7 +51,15 @@ const UploadCheck = () => {
 
   const handleFiles = (newFiles: File[]) => {
     // Filter for acceptable file types
-    const acceptedTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain'];
+    const acceptedTypes = [
+      'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'text/plain',
+      'image/png', // Add PNG
+      'image/jpeg', // Add JPEG
+      'image/jpg',  // Add JPG
+    ];
     const validFiles = newFiles.filter(file => acceptedTypes.includes(file.type));
     
     if (validFiles.length !== newFiles.length) {
@@ -62,47 +79,106 @@ const UploadCheck = () => {
     setFiles(prev => prev.filter((_, i) => i !== index));
   };
 
-  const analyzeFiles = () => {
+  const analyzeFiles = async () => {
     if (files.length === 0) {
-      toast({
-        title: "No files to analyze",
-        description: "Please upload at least one document to check for plagiarism.",
-        variant: "destructive"
-      });
-      return;
+        toast.error("Please upload at least one document to check for plagiarism.");
+        return;
     }
 
     setIsAnalyzing(true);
-    
-    // Simulate plagiarism check with timeout
-    setTimeout(() => {
-      setIsAnalyzing(false);
-      setResults({
-        score: Math.floor(Math.random() * 30), // Random similarity score between 0-30%
-        matches: Math.floor(Math.random() * 10) // Random number of matches
-      });
-      
-      toast({
-        title: "Analysis Complete",
-        description: "We've completed the plagiarism analysis for your documents.",
-      });
-    }, 3000);
-  };
 
-  const viewReport = () => {
-    // In a real application, this would open a detailed report view
-    toast({
-      title: "Opening Report",
-      description: "Opening detailed plagiarism report in a new window.",
-    });
-  };
+    try {
+        const formData = new FormData();
+        files.forEach(file => formData.append("files", file));
 
-  const downloadReport = () => {
-    // In a real application, this would generate and download a PDF
-    toast({
-      title: "Downloading Report",
-      description: "Your plagiarism report is being downloaded as a PDF.",
+        const token = localStorage.getItem("token"); // get the token from local storage.
+        if (!token) {
+            throw new Error("Authentication token not found.");
+        }
+
+        const uploadResponse = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/uploadcheck/upload-and-check`, {
+            method: "POST",
+            body: formData,
+            headers: {
+                Authorization: `Bearer ${token}`,
+            },
+        });
+
+        if (!uploadResponse.ok) {
+            const errorData = await uploadResponse.json();
+            throw new Error(errorData.error || "Failed to upload files.");
+        }
+
+        const uploadData = await uploadResponse.json();
+        setResults(uploadData.results);
+
+        toast.success("Plagiarism analysis completed.");
+    } catch (error) {
+        toast.error(error.message);
+    } finally {
+        setIsAnalyzing(false);
+    }
+};;
+
+
+const viewReport = async () => {
+  try {
+    const token = localStorage.getItem("token");
+    if (!token) {
+      throw new Error("Authentication token not found.");
+    }
+
+    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/uploadcheck/view-report`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
     });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || "Failed to fetch report.");
+    }
+
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    window.open(url, '_blank'); // Open in a new tab
+    URL.revokeObjectURL(url); // Clean up the URL object
+  } catch (error) {
+    toast.error(error.message);
+  }
+};
+
+  const downloadReport = async () => {
+    try {
+        const token = localStorage.getItem("token"); // get the token from local storage.
+        if (!token) {
+            throw new Error("Authentication token not found.");
+        }
+
+        const downloadResponse = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/uploadcheck/download-report`, {
+            headers: {
+                Authorization: `Bearer ${token}`,
+            },
+        });
+
+        if (!downloadResponse.ok) {
+            const errorData = await downloadResponse.json();
+            throw new Error(errorData.error || "Failed to download report.");
+        }
+
+        const blob = await downloadResponse.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'plagiarism_report.pdf';
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+
+        toast.success("Report downloaded successfully.");
+    } catch (error) {
+        toast.error(error.message);
+    }
   };
 
   // Steps for the "How It Works" section
@@ -144,6 +220,7 @@ const UploadCheck = () => {
               We support PDF, Word documents, and text files.
             </p>
           </div>
+        </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <div className="md:col-span-2">
@@ -164,7 +241,7 @@ const UploadCheck = () => {
                     multiple
                     className="hidden"
                     onChange={handleFileChange}
-                    accept=".pdf,.doc,.docx,.txt"
+                    accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg"
                   />
 
                   <Upload size={40} className={cn(
@@ -226,108 +303,78 @@ const UploadCheck = () => {
 
             <div className="animate-slide-in" style={{ animationDelay: '200ms' }}>
               <GlassmorphismCard className="h-full shadow-lg" intensity="medium">
-                <div className="p-6">
-                  <h3 className="text-xl font-semibold mb-4 flex items-center">
-                    <span className="bg-veri/10 text-veri p-1.5 rounded-md mr-2">
-                      <CheckCircle size={18} />
-                    </span>
-                    Analysis Results
-                  </h3>
-                  
-                  {!results && !isAnalyzing && (
-                    <div className="flex flex-col items-center justify-center h-60 text-center">
-                      <AlertCircle size={40} className="text-muted-foreground mb-4 opacity-60" />
-                      <p className="text-muted-foreground">
-                        No results yet. Upload documents and run a plagiarism check to see results here.
-                      </p>
-                    </div>
-                  )}
-
-                  {isAnalyzing && (
-                    <div className="flex flex-col items-center justify-center h-60 text-center">
-                      <div className="w-16 h-16 relative mb-4">
-                        <div className="absolute top-0 left-0 w-full h-full border-4 border-veri/30 rounded-full"></div>
-                        <div className="absolute top-0 left-0 w-full h-full border-4 border-t-transparent border-veri rounded-full animate-spin"></div>
-                      </div>
-                      <p className="text-muted-foreground">
-                        Analyzing documents for plagiarism...
-                      </p>
-                    </div>
-                  )}
-
-                  {results && !isAnalyzing && (
-                    <div className="space-y-6 animate-fade-in">
-                      <div className="bg-secondary/30 p-5 rounded-lg border border-border">
-                        <div className="flex justify-between items-center mb-3">
-                          <span className="font-medium">Similarity Score</span>
-                          <span className={cn(
-                            "font-bold text-lg",
-                            results.score < 15 ? "text-green-500" : 
-                            results.score < 25 ? "text-amber-500" : "text-red-500"
-                          )}>
-                            {results.score}%
+                  <div className="p-6">
+                      <h3 className="text-xl font-semibold mb-4 flex items-center">
+                          <span className="bg-veri/10 text-veri p-1.5 rounded-md mr-2">
+                              <CheckCircle size={18} />
                           </span>
-                        </div>
-                        <div className="w-full bg-secondary h-3 rounded-full overflow-hidden">
-                          <div 
-                            className={cn(
-                              "h-full rounded-full transition-all duration-1000",
-                              results.score < 15 ? "bg-green-500" : 
-                              results.score < 25 ? "bg-amber-500" : "bg-red-500"
-                            )}
-                            style={{ width: `${results.score}%` }}
-                          ></div>
-                        </div>
-                      </div>
+                          Analysis Results
+                      </h3>
 
-                      <div>
-                        <h4 className="font-medium mb-2">Matches Found</h4>
-                        <div className="flex items-center space-x-2">
-                          <div className="bg-secondary/30 px-4 py-2 rounded-lg border border-border">
-                            <span className="font-bold text-lg">{results.matches}</span>
+                      {!results && !isAnalyzing && (
+                          <div className="flex flex-col items-center justify-center h-60 text-center">
+                              <AlertCircle size={40} className="text-muted-foreground mb-4 opacity-60" />
+                              <p className="text-muted-foreground">
+                                  No results yet. Upload documents and run a plagiarism check to see results here.
+                              </p>
                           </div>
-                          <span className="text-muted-foreground text-sm">
-                            sources with similar content
-                          </span>
-                        </div>
-                      </div>
-                      
-                      <div className={cn(
-                        "p-4 rounded-lg flex items-center space-x-3",
-                        results.score < 15 ? "bg-green-500/10 text-green-500 border border-green-200" : 
-                        results.score < 25 ? "bg-amber-500/10 text-amber-500 border border-amber-200" : "bg-red-500/10 text-red-500 border border-red-200"
-                      )}>
-                        <CheckCircle size={20} />
-                        <span className="text-sm font-medium">
-                          {results.score < 15 ? "Low similarity - likely original content" : 
-                           results.score < 25 ? "Moderate similarity - review highlighted sections" : 
-                           "High similarity - significant matching content detected"}
-                        </span>
-                      </div>
+                      )}
 
-                      <div className="grid grid-cols-2 gap-3 pt-2">
-                        <CustomButton 
-                          variant="outline" 
-                          fullWidth
-                          icon={<Eye size={18} />}
-                          onClick={viewReport}
-                        >
-                          View Report
-                        </CustomButton>
-                        
-                        <CustomButton 
-                          fullWidth
-                          icon={<FileDown size={18} />}
-                          onClick={downloadReport}
-                        >
-                          Download PDF
-                        </CustomButton>
-                      </div>
-                    </div>
-                  )}
-                </div>
+                      {isAnalyzing && (
+                          <div className="flex flex-col items-center justify-center h-60 text-center">
+                              <div className="w-16 h-16 relative mb-4">
+                                  <div className="absolute top-0 left-0 w-full h-full border-4 border-veri/30 rounded-full"></div>
+                                  <div className="absolute top-0 left-0 w-full h-full border-4 border-t-transparent border-veri rounded-full animate-spin"></div>
+                              </div>
+                              <p className="text-muted-foreground">
+                                  Analyzing documents for plagiarism...
+                              </p>
+                          </div>
+                      )}
+
+                      {results && !isAnalyzing && (
+                          <div className="space-y-6 animate-fade-in">
+                              {results.map((result, index) => (
+                                  <div key={index} className="bg-secondary/30 p-5 rounded-lg border border-border">
+                                      <h4 className="font-medium mb-4">Comparison {index + 1}</h4>
+                                      <div className="flex justify-between items-center mb-2">
+                                          <span className="font-medium">Files Compared:</span>
+                                          <span>{result.file1} vs {result.file2}</span>
+                                      </div>
+                                      <div className="flex justify-between items-center mb-2">
+                                          <span className="font-medium">Similarity:</span>
+                                          <span className={cn(
+                                              "font-bold text-lg",
+                                              result.level === "Low" ? "text-green-500" :
+                                              result.level === "Medium" ? "text-amber-500" : "text-red-500"
+                                          )}>
+                                              {result.similarity} ({result.level})
+                                          </span>
+                                      </div>
+                                      {index < results.length - 1 && <hr className="my-4 border-border/50" />}
+                                  </div>
+                              ))}
+                              <div className="grid grid-cols-2 gap-3 pt-2">
+                                  <CustomButton
+                                      variant="outline"
+                                      fullWidth
+                                      icon={<Eye size={18} />}
+                                      onClick={viewReport}
+                                  >
+                                      View Report
+                                  </CustomButton>
+                                  <CustomButton
+                                      fullWidth
+                                      icon={<FileDown size={18} />}
+                                      onClick={downloadReport}
+                                  >
+                                      Download PDF
+                                  </CustomButton>
+                              </div>
+                          </div>
+                      )}
+                  </div>
               </GlassmorphismCard>
-            </div>
           </div>
 
           <div className="mt-12 animate-slide-up" style={{ animationDelay: '400ms' }}>

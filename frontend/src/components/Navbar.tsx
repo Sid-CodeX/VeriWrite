@@ -4,8 +4,17 @@ import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import Logo from './Logo';
 import DarkModeToggle from './DarkModeToggle';
-import { Menu, X, LogOut } from 'lucide-react';
+import { Menu, X, User, LogOut, Settings } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 const Navbar = () => {
   const [scrolled, setScrolled] = useState(false);
@@ -59,6 +68,16 @@ const Navbar = () => {
     setMobileMenuOpen(false);
   }, [location]);
 
+  // Get user initials for avatar
+  const getUserInitials = () => {
+    if (!user?.name) return 'U';
+    
+    const nameParts = user.name.split(' ');
+    if (nameParts.length === 1) return nameParts[0].charAt(0).toUpperCase();
+    
+    return (nameParts[0].charAt(0) + nameParts[nameParts.length - 1].charAt(0)).toUpperCase();
+  };
+
   return (
     <nav
       className={cn(
@@ -94,16 +113,35 @@ const Navbar = () => {
             </Link>
           ))}
           
-          {/* Show logout button if authenticated */}
+          {/* Profile dropdown if authenticated */}
           {isAuthenticated && (
-            <button
-              onClick={logout}
-              className="flex items-center gap-2 text-sm font-medium text-foreground/80 hover:text-foreground transition-colors"
-              aria-label="Logout"
-            >
-              <LogOut size={16} />
-              <span>Logout</span>
-            </button>
+            <DropdownMenu>
+              <DropdownMenuTrigger className="focus:outline-none">
+                <Avatar className="h-9 w-9 transition-all hover:ring-2 hover:ring-veri/20">
+                  <AvatarFallback className="bg-veri/10 text-veri">
+                    {getUserInitials()}
+                  </AvatarFallback>
+                </Avatar>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuLabel>My Account</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem className="cursor-pointer" asChild>
+                  <Link to="/profile" className="flex items-center gap-2">
+                    <User size={16} />
+                    <span>Profile</span>
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem 
+                  onClick={logout}
+                  className="text-destructive cursor-pointer focus:text-destructive"
+                >
+                  <LogOut size={16} className="mr-2" />
+                  <span>Logout</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
           
           {/* Dark mode toggle */}
@@ -112,6 +150,35 @@ const Navbar = () => {
 
         {/* Mobile Menu Button */}
         <div className="md:hidden flex items-center gap-4">
+          {isAuthenticated && (
+            <DropdownMenu>
+              <DropdownMenuTrigger className="focus:outline-none">
+                <Avatar className="h-8 w-8 transition-all hover:ring-2 hover:ring-veri/20">
+                  <AvatarFallback className="bg-veri/10 text-veri">
+                    {getUserInitials()}
+                  </AvatarFallback>
+                </Avatar>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuLabel>My Account</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem className="cursor-pointer" asChild>
+                  <Link to="/profile" className="flex items-center gap-2">
+                    <User size={16} />
+                    <span>Profile</span>
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem 
+                  onClick={logout}
+                  className="text-destructive cursor-pointer focus:text-destructive"
+                >
+                  <LogOut size={16} className="mr-2" />
+                  <span>Logout</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
           <DarkModeToggle />
           <button 
             className="text-foreground" 
@@ -146,22 +213,6 @@ const Navbar = () => {
                 {item.name}
               </Link>
             ))}
-            
-            {/* Show logout button if authenticated */}
-            {isAuthenticated && (
-              <button
-                onClick={logout}
-                className="flex items-center gap-2 py-2 text-sm font-medium text-foreground/80 hover:text-foreground transition-colors animate-fade-in"
-                aria-label="Logout"
-                style={{ 
-                  animationDelay: `${0.1 + navItems.length * 0.1}s`, 
-                  animationFillMode: 'backwards' 
-                }}
-              >
-                <LogOut size={16} />
-                <span>Logout</span>
-              </button>
-            )}
           </div>
         </div>
       )}

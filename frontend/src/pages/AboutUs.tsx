@@ -2,6 +2,36 @@
 import { useEffect } from 'react';
 import Navbar from '@/components/Navbar';
 import GlassmorphismCard from '@/components/ui/GlassmorphismCard';
+import Footer from '@/components/Footer';
+import { Mail } from 'lucide-react';
+
+// Team member data
+const teamMembers = [
+  {
+    name: 'Sidharth P',
+    email: 'sidharth@example.com',
+    image: 'https://images.unsplash.com/photo-1633332755192-727a05c4013d?q=80&w=2080',
+    role: 'Project Lead'
+  },
+  {
+    name: 'Rahul Koshy Manoj',
+    email: 'rahul@example.com',
+    image: 'https://images.unsplash.com/photo-1568602471122-7832951cc4c5?q=80&w=2070',
+    role: 'Full Stack Developer'
+  },
+  {
+    name: 'Mariya Jose',
+    email: 'mariya@example.com',
+    image: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=1887',
+    role: 'UI/UX Designer'
+  },
+  {
+    name: 'Archana Mukundan',
+    email: 'archana@example.com',
+    image: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=1964',
+    role: 'Backend Developer'
+  }
+];
 
 const AboutUs = () => {
   // Scroll to top on page load
@@ -49,24 +79,45 @@ const AboutUs = () => {
             </ul>
             
             <h2 className="text-2xl font-semibold mb-4">Our Team</h2>
-            <p className="text-muted-foreground">
+            <p className="text-muted-foreground mb-6">
               VeriWrite is powered by a dedicated team of educators, developers, and customer support 
               specialists who are passionate about academic integrity. We work closely with educational 
               institutions to continuously improve our platform and provide the best possible experience 
               for our users.
             </p>
           </GlassmorphismCard>
+          
+          {/* Team Members Section */}
+          <h2 className="text-3xl font-bold mb-6 text-center">Meet Our Team</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
+            {teamMembers.map((member, index) => (
+              <GlassmorphismCard key={index} className="overflow-hidden">
+                <div className="flex flex-col sm:flex-row">
+                  <div className="sm:w-1/3 h-48 sm:h-auto">
+                    <img 
+                      src={member.image} 
+                      alt={`${member.name} profile`} 
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  <div className="p-6 sm:w-2/3 flex flex-col justify-center">
+                    <h3 className="text-xl font-bold">{member.name}</h3>
+                    <p className="text-muted-foreground text-sm mb-2">{member.role}</p>
+                    <div className="flex items-center mt-2 text-muted-foreground">
+                      <Mail size={16} className="mr-2" />
+                      <a href={`mailto:${member.email}`} className="text-sm hover:text-veri transition-colors">
+                        {member.email}
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              </GlassmorphismCard>
+            ))}
+          </div>
         </div>
       </main>
       
-      {/* Footer */}
-      <footer className="bg-secondary py-6 px-6">
-        <div className="container mx-auto text-center">
-          <p className="text-muted-foreground text-sm">
-            © {new Date().getFullYear()} VeriWrite. All rights reserved.
-          </p>
-        </div>
-      </footer>
+      <Footer />
     </div>
   );
 };

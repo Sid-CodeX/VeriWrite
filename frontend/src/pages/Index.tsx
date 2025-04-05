@@ -4,10 +4,9 @@ import { useNavigate } from 'react-router-dom';
 import Navbar from '@/components/Navbar';
 import Hero from '@/components/Hero';
 import Features from '@/components/Features';
-import FeatureComparison from '@/components/FeatureComparison';
 import Testimonials from '@/components/Testimonials';
-import Logo from '@/components/Logo';
-import { Mail, Phone, MapPin, ArrowRight } from 'lucide-react';
+import Footer from '@/components/Footer';
+import { ArrowRight, CheckCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import CustomButton from '@/components/ui/CustomButton';
 
@@ -37,9 +36,97 @@ const Index = () => {
               </p>
             </div>
             
-            <FeatureComparison />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-12 mb-12">
+              <div className="p-6 rounded-xl bg-secondary/30 border border-border/50 hover:border-veri/20 hover:bg-secondary/40 transition-all duration-300">
+                <div className="flex items-start mb-4">
+                  <div className="p-3 rounded-full bg-veri/10 mr-4">
+                    <CheckCircle className="text-veri" size={24} />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-semibold mb-2">AI-Powered Detection</h3>
+                    <p className="text-muted-foreground">
+                      Our advanced algorithms detect even cleverly disguised plagiarism, including paraphrased content and cross-language matching.
+                    </p>
+                  </div>
+                </div>
+                <ul className="space-y-2 pl-14">
+                  {["Semantic analysis", "Context-aware matching", "Multi-language support"].map((item, i) => (
+                    <li key={i} className="flex items-center">
+                      <span className="w-2 h-2 rounded-full bg-veri mr-2"></span>
+                      <span className="text-sm text-muted-foreground">{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              
+              <div className="p-6 rounded-xl bg-secondary/30 border border-border/50 hover:border-veri/20 hover:bg-secondary/40 transition-all duration-300">
+                <div className="flex items-start mb-4">
+                  <div className="p-3 rounded-full bg-veri/10 mr-4">
+                    <CheckCircle className="text-veri" size={24} />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-semibold mb-2">Comprehensive Reports</h3>
+                    <p className="text-muted-foreground">
+                      Get detailed reports with source tracking, similarity scores, and highlighted matches to make informed decisions.
+                    </p>
+                  </div>
+                </div>
+                <ul className="space-y-2 pl-14">
+                  {["Source attribution", "Similarity breakdown", "Direct citation links"].map((item, i) => (
+                    <li key={i} className="flex items-center">
+                      <span className="w-2 h-2 rounded-full bg-veri mr-2"></span>
+                      <span className="text-sm text-muted-foreground">{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              
+              <div className="p-6 rounded-xl bg-secondary/30 border border-border/50 hover:border-veri/20 hover:bg-secondary/40 transition-all duration-300">
+                <div className="flex items-start mb-4">
+                  <div className="p-3 rounded-full bg-veri/10 mr-4">
+                    <CheckCircle className="text-veri" size={24} />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-semibold mb-2">Integrated Classroom</h3>
+                    <p className="text-muted-foreground">
+                      Manage courses, assignments, and submissions in one unified platform designed specifically for academic integrity.
+                    </p>
+                  </div>
+                </div>
+                <ul className="space-y-2 pl-14">
+                  {["Course management", "Assignment tracking", "Submission history"].map((item, i) => (
+                    <li key={i} className="flex items-center">
+                      <span className="w-2 h-2 rounded-full bg-veri mr-2"></span>
+                      <span className="text-sm text-muted-foreground">{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              
+              <div className="p-6 rounded-xl bg-secondary/30 border border-border/50 hover:border-veri/20 hover:bg-secondary/40 transition-all duration-300">
+                <div className="flex items-start mb-4">
+                  <div className="p-3 rounded-full bg-veri/10 mr-4">
+                    <CheckCircle className="text-veri" size={24} />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-semibold mb-2">Multiple Document Formats</h3>
+                    <p className="text-muted-foreground">
+                      Support for various document types including handwritten documents through advanced OCR technology.
+                    </p>
+                  </div>
+                </div>
+                <ul className="space-y-2 pl-14">
+                  {["PDF and DOCX support", "Handwritten text recognition", "Image-based document analysis"].map((item, i) => (
+                    <li key={i} className="flex items-center">
+                      <span className="w-2 h-2 rounded-full bg-veri mr-2"></span>
+                      <span className="text-sm text-muted-foreground">{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
             
-            <div className="mt-16 text-center">
+            <div className="mt-8 text-center">
               <CustomButton onClick={() => navigate('/auth')} icon={<ArrowRight className="ml-2 h-4 w-4" />} iconPosition="right">
                 Get Started Now
               </CustomButton>
@@ -140,62 +227,8 @@ const Index = () => {
         <Testimonials />
       </main>
       
-      {/* Footer */}
-      <footer className="bg-secondary py-12 px-6">
-        <div className="container mx-auto">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-            <div className="md:col-span-1">
-              <Logo className="mb-4" />
-              <p className="text-muted-foreground text-sm">
-                Advanced plagiarism detection for educators committed to academic integrity.
-              </p>
-            </div>
-            
-            <div className="md:col-span-1">
-              <h4 className="font-medium text-lg mb-4">Products</h4>
-              <ul className="space-y-2">
-                <li><Link to="/classroom" className="text-muted-foreground hover:text-foreground text-sm">Classroom</Link></li>
-                <li><Link to="/upload-check" className="text-muted-foreground hover:text-foreground text-sm">Upload & Check</Link></li>
-                <li><Link to="/online-check" className="text-muted-foreground hover:text-foreground text-sm">Online Check</Link></li>
-              </ul>
-            </div>
-            
-            <div className="md:col-span-1">
-              <h4 className="font-medium text-lg mb-4">Company</h4>
-              <ul className="space-y-2">
-                <li><Link to="/about" className="text-muted-foreground hover:text-foreground text-sm">About Us</Link></li>
-                <li><Link to="/contact" className="text-muted-foreground hover:text-foreground text-sm">Contact Us</Link></li>
-                <li><Link to="/privacy-policy" className="text-muted-foreground hover:text-foreground text-sm">Privacy Policy</Link></li>
-                <li><Link to="/terms-of-service" className="text-muted-foreground hover:text-foreground text-sm">Terms of Service</Link></li>
-              </ul>
-            </div>
-            
-            <div className="md:col-span-1">
-              <h4 className="font-medium text-lg mb-4">Contact</h4>
-              <ul className="space-y-3">
-                <li className="flex items-start gap-3">
-                  <Mail size={16} className="text-muted-foreground mt-0.5" />
-                  <span className="text-muted-foreground text-sm">22cs362@mgits.ac</span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <Phone size={16} className="text-muted-foreground mt-0.5" />
-                  <span className="text-muted-foreground text-sm">+1 (555) 123-4567</span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <MapPin size={16} className="text-muted-foreground mt-0.5" />
-                  <span className="text-muted-foreground text-sm">123 Academic Ave, Education City, EC 12345</span>
-                </li>
-              </ul>
-            </div>
-          </div>
-          
-          <div className="border-t border-border/50 mt-12 pt-8 text-center">
-            <p className="text-muted-foreground text-sm">
-              © {new Date().getFullYear()} VeriWrite. All rights reserved.
-            </p>
-          </div>
-        </div>
-      </footer>
+      {/* Footer now using the shared component */}
+      <Footer />
     </div>
   );
 };
