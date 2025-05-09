@@ -1,7 +1,7 @@
 const express = require("express");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-const fs = require("fs").promises;  // ✅ Fix 1: Import fs
+const fs = require("fs").promises;  
 const User = require("../models/User");
 const OCRuploadcheck = require("../models/OCRuploadcheck"); // ✅ Fix 2: Import OCRuploadcheck
 require("dotenv").config();
