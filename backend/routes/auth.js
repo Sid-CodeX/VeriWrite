@@ -3,12 +3,12 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const fs = require("fs").promises;  
 const User = require("../models/User");
-const OCRuploadcheck = require("../models/OCRuploadcheck"); // ✅ Fix 2: Import OCRuploadcheck
+const OCRuploadcheck = require("../models/OCRuploadcheck"); 
 require("dotenv").config();
 
 const router = express.Router();
 
-// ✅ Middleware to verify JWT token
+// Middleware to verify JWT token
 const authenticateToken = (req, res, next) => {
     const token = req.header("Authorization");
     if (!token) return res.status(401).json({ error: "Access denied. No token provided." });
@@ -22,7 +22,7 @@ const authenticateToken = (req, res, next) => {
     }
 };
 
-// ✅ User Signup
+//  User Signup
 router.post("/signup", async (req, res) => {
     try {
         const { name, email, password, role } = req.body;
@@ -42,7 +42,7 @@ router.post("/signup", async (req, res) => {
     }
 });
 
-// ✅ User Login (JWT-based)
+// User Login (JWT-based)
 router.post("/login", async (req, res) => {
     try {
         const { email, password } = req.body;
@@ -53,7 +53,7 @@ router.post("/login", async (req, res) => {
             return res.status(400).json({ error: "Invalid email or password" });
         }
 
-        // ✅ Generate JWT token
+        // Generate JWT token
         const token = jwt.sign({ userId: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: "1d" });
         res.json({ message: "Login successful", token, user: { name: user.name, email: user.email, role: user.role } });
     } catch (error) {
@@ -61,7 +61,7 @@ router.post("/login", async (req, res) => {
     }
 });
 
-// ✅ Logout & Cleanup
+// Logout & Cleanup
 router.post("/logout", authenticateToken, async (req, res) => {
     try {
         const teacherId = req.user.userId;  // ✅ Fix 3: Correct teacherId
@@ -80,7 +80,7 @@ router.post("/logout", authenticateToken, async (req, res) => {
     }
 });
 
-// ✅ Profile Update
+// Profile Update
 router.put("/profile", authenticateToken, async (req, res) => {
     try {
         const { name } = req.body;
@@ -94,7 +94,7 @@ router.put("/profile", authenticateToken, async (req, res) => {
     }
 });
 
-// ✅ Change Password
+// Change Password
 router.put("/change-password", authenticateToken, async (req, res) => {
     try {
         const { currentPassword, newPassword } = req.body;
