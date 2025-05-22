@@ -19,7 +19,7 @@ const authenticate = (req, res, next) => {
   }
 };
 
-//  POST /create-classroom
+// POST /create-classroom
 router.post("/create-classroom", authenticate, async (req, res) => {
   try {
     const { name, description } = req.body;
