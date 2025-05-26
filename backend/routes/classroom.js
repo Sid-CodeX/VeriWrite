@@ -6,7 +6,7 @@ const User = require("../models/User");
 
 const router = express.Router();
 
-// ✅ Middleware for authentication
+// Middleware for authentication
 const authenticate = (req, res, next) => {
   try {
     const token = req.headers.authorization?.split(" ")[1];
@@ -20,7 +20,7 @@ const authenticate = (req, res, next) => {
   }
 };
 
-// ✅ POST /create-classroom
+// POST /create-classroom
 router.post("/create-classroom", authenticate, async (req, res) => {
   try {
     const { name, description } = req.body;
