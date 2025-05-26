@@ -1,13 +1,40 @@
+// /models/Assignment.js
 const mongoose = require("mongoose");
 
-const AssignmentSchema = new mongoose.Schema({
-  course_id: { type: mongoose.Schema.Types.ObjectId, ref: "Course", required: true },
-  teacher_id: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
-  type: { type: String, enum: ["assignment", "exam"], required: true },
-  title: { type: String, required: true },
-  description: { type: String },
-  deadline: { type: Date, required: true },
-  file_url: { type: String }
-}, { timestamps: true });
+const submissionSchema = new mongoose.Schema({
+  studentId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+  name: String,
+  email: String,
+  submitted: { type: Boolean, default: false },
+  submittedAt: { type: Date },
+  fileName: String,
+  extractedText: String,
+  plagiarismPercent: Number,
+  wordCount: Number,
+  teacherRemark: { type: String, default: "No remarks" },
 
-module.exports = mongoose.model("Assignment", AssignmentSchema);
+  topMatches: [{
+    matchedStudentId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+    matchedText: String,
+    plagiarismPercent: Number
+  }],
+
+  allMatches: [{
+    name: String,
+    plagiarismPercent: Number
+  }]
+});
+
+const assignmentSchema = new mongoose.Schema({
+  classroomId: { type: mongoose.Schema.Types.ObjectId, ref: "Classroom", required: true },
+  type: { type: String, enum: ["Assignment", "Exam"], required: true },
+  title: { type: String, required: true },
+  description: String,
+  deadline: { type: Date, required: true },
+  questionFile: String, // only teacher uploads this
+
+  submissions: [submissionSchema],
+  createdAt: { type: Date, default: Date.now }
+});
+
+module.exports = mongoose.model("Assignment", assignmentSchema);
