@@ -1,4 +1,3 @@
-// /models/Assignment.js
 const mongoose = require("mongoose");
 
 const submissionSchema = new mongoose.Schema({
@@ -31,10 +30,15 @@ const assignmentSchema = new mongoose.Schema({
   title: { type: String, required: true },
   description: String,
   deadline: { type: Date, required: true },
-  questionFile: String, // only teacher uploads this
-
+  questionFile: {
+    data: Buffer,
+    contentType: String,
+    originalName: String
+  },
+  
   submissions: [submissionSchema],
   createdAt: { type: Date, default: Date.now }
 });
 
-module.exports = mongoose.model("Assignment", assignmentSchema);
+module.exports = mongoose.models.Assignment || mongoose.model('Assignment', assignmentSchema);
+
