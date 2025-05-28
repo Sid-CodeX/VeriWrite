@@ -15,7 +15,7 @@ const authenticate = (req, res, next) => {
     if (!token) return res.status(401).json({ error: "Unauthorized" });
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.userId = decoded.userId;
+    req.teacherId = decoded.userId;
     req.role = decoded.role;
 
     next();
@@ -88,7 +88,6 @@ router.post("/create-assignment", authenticate, requireTeacher, upload.single("f
       return res.status(400).json({ error: "Missing required fields" });
     }
 
-    // Validate deadline
     const deadlineDate = new Date(deadline);
     if (isNaN(deadlineDate.getTime()) || deadlineDate <= new Date()) {
       return res.status(400).json({ error: "Deadline must be a valid future date" });
@@ -129,6 +128,17 @@ router.post("/create-assignment", authenticate, requireTeacher, upload.single("f
 
     await newAssignment.save();
 
+    // Update classroom with assignment/exam reference
+    if (type.toLowerCase() === "assignment") {
+      classroom.assignments.push(newAssignment._id);
+      classroom.numAssignments += 1;
+    } else if (type.toLowerCase() === "exam") {
+      classroom.exams.push(newAssignment._id);
+      classroom.numExams += 1;
+    }
+
+    await classroom.save();
+
     res.status(201).json({
       message: "Assignment created successfully",
       assignmentId: newAssignment._id,
@@ -138,6 +148,7 @@ router.post("/create-assignment", authenticate, requireTeacher, upload.single("f
     res.status(500).json({ error: "Server error" });
   }
 });
+
 
 // GET /view/:assignmentId
 router.get("/view/:assignmentId", authenticate, requireTeacher, async (req, res) => {
