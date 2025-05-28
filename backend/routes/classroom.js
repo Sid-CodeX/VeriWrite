@@ -14,14 +14,24 @@ const authenticate = (req, res, next) => {
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     req.teacherId = decoded.userId;
+    req.role = decoded.role;
+
     next();
   } catch (err) {
-    res.status(401).json({ error: "Invalid Token" });
+    res.status(401).json({ error: "Invalid token" });
   }
 };
 
+// Only Teacher Access Middleware
+const requireTeacher = (req, res, next) => {
+  if (req.role !== "teacher") {
+    return res.status(403).json({ error: "Access denied: Teachers only" });
+  }
+  next();
+};
+
 // POST /create-classroom
-router.post("/create-classroom", authenticate, async (req, res) => {
+router.post("/create-classroom", authenticate, requireTeacher, async (req, res) => {
   try {
     const { name, description } = req.body;
     const teacherId = req.teacherId;
@@ -59,7 +69,7 @@ router.post("/create-classroom", authenticate, async (req, res) => {
 });
 
 // ✅ GET /teacher-classrooms
-router.get("/teacher-classrooms", authenticate, async (req, res) => {
+router.get("/teacher-classrooms", authenticate, requireTeacher, async (req, res) => {
   try {
     const teacherId = req.teacherId;
     
@@ -87,7 +97,7 @@ router.get("/teacher-classrooms", authenticate, async (req, res) => {
 });
 
 // Add student to classroom
-router.post("/add-student", authenticate, async (req, res) => {
+router.post("/add-student", authenticate, requireTeacher, async (req, res) => {
   try {
     const { classroomId, studentEmail } = req.body;
 
@@ -133,5 +143,56 @@ router.post("/add-student", authenticate, async (req, res) => {
     res.status(500).json({ error: "Server error" });
   }
 });
+
+// GET /view-course/:id
+router.get("/view-course/:id", authenticate, requireTeacher, async (req, res) => {
+  try {
+    const classroomId = req.params.id;
+
+    const classroom = await Classroom.findById(classroomId)
+      .populate("assignments")
+      .populate("exams");
+
+    if (!classroom) {
+      return res.status(404).json({ error: "Classroom not found" });
+    }
+
+    // Combine assignments and exams into one list for frontend rendering
+    const allTasks = [];
+
+    const extractTaskInfo = (task) => {
+      const submittedCount = task.submissions.filter((s) => s.submitted).length;
+      return {
+        id: task._id,
+        type: task.type, // "Assignment" or "Exam"
+        title: task.title,
+        deadline: task.deadline,
+        submissions: `${submittedCount}/${classroom.numStudents}`,
+      };
+    };
+
+    classroom.assignments.forEach((a) => allTasks.push(extractTaskInfo(a)));
+    classroom.exams.forEach((e) => allTasks.push(extractTaskInfo(e)));
+
+    res.status(200).json({
+      id: classroom._id,
+      name: classroom.name,
+      description: classroom.description,
+      numStudents: classroom.numStudents,
+      numAssignments: classroom.numAssignments,
+      numExams: classroom.numExams,
+      students: classroom.students.map((s) => ({
+        studentId: s.studentId,
+        name: s.name,
+        email: s.email,
+      })),
+      tasks: allTasks, // Includes both assignments & exams
+    });
+  } catch (error) {
+    console.error("Error viewing course:", error);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
 
 module.exports = router;
