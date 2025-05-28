@@ -68,7 +68,7 @@ router.post("/create-classroom", authenticate, requireTeacher, async (req, res) 
   }
 });
 
-// ✅ GET /teacher-classrooms
+// GET /teacher-classrooms
 router.get("/teacher-classrooms", authenticate, requireTeacher, async (req, res) => {
   try {
     const teacherId = req.teacherId;
@@ -101,19 +101,19 @@ router.post("/add-student", authenticate, requireTeacher, async (req, res) => {
   try {
     const { classroomId, studentEmail } = req.body;
 
-    // 1. Find student by email and role 'student'
+    // Find student by email and role 
     const student = await User.findOne({ email: studentEmail, role: "student" });
     if (!student) {
       return res.status(404).json({ error: "Student not found" });
     }
 
-    // 2. Find classroom
+    // Find classroom
     const classroom = await Classroom.findById(classroomId);
     if (!classroom) {
       return res.status(404).json({ error: "Classroom not found" });
     }
 
-    // 3. Check if student is already added to the classroom
+    // Check if student is already added to the classroom
     const alreadyAdded = classroom.students.some(
       (s) => s.studentId.toString() === student._id.toString()
     );
@@ -121,19 +121,16 @@ router.post("/add-student", authenticate, requireTeacher, async (req, res) => {
       return res.status(400).json({ error: "Student is already in this classroom" });
     }
 
-    // 4. Add student to the classroom
+    // Add student to the classroom
     classroom.students.push({
       studentId: student._id,
       name: student.name,
       email: student.email,
     });
 
-    // Increment student count
     classroom.numStudents += 1;
 
     await classroom.save();
-
-    // Respond with success message
     res.status(200).json({
       message: "Student added successfully",
       student: { name: student.name, email: student.email },
@@ -164,7 +161,7 @@ router.get("/view-course/:id", authenticate, requireTeacher, async (req, res) =>
       const submittedCount = task.submissions.filter((s) => s.submitted).length;
       return {
         id: task._id,
-        type: task.type, // "Assignment" or "Exam"
+        type: task.type, 
         title: task.title,
         deadline: task.deadline,
         submissions: `${submittedCount}/${classroom.numStudents}`,
@@ -186,13 +183,12 @@ router.get("/view-course/:id", authenticate, requireTeacher, async (req, res) =>
         name: s.name,
         email: s.email,
       })),
-      tasks: allTasks, // Includes both assignments & exams
+      tasks: allTasks, 
     });
   } catch (error) {
     console.error("Error viewing course:", error);
     res.status(500).json({ error: "Server error" });
   }
 });
-
 
 module.exports = router;
