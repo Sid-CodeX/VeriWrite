@@ -32,43 +32,43 @@ const requireTeacher = (req, res, next) => {
   next();
 };
 
+
 // Multer Setup for In-Memory Storage
 const storage = multer.memoryStorage();
-
-const fileFilter = (req, file, cb) => {
-  const allowedTypes = [".pdf", ".doc", ".docx", ".txt"];
-  const ext = path.extname(file.originalname).toLowerCase();
-  if (!allowedTypes.includes(ext)) {
-    return cb(new Error("Invalid file type"));
-  }
-  cb(null, true);
-};
-
 const upload = multer({
   storage,
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
-  fileFilter,
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = [".pdf", ".doc", ".docx", ".txt"];
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (!allowedTypes.includes(ext)) {
+      return cb(new Error("Only PDF, Word, or Text files are allowed"));
+    }
+    cb(null, true);
+  }
 });
 
 // Utility: Calculate Jaccard Similarity
 function calculateSimilarity(text1, text2) {
+  // Clean and tokenize
   const tokenize = (text) => {
     if (!text || typeof text !== "string") return [];
     return text
       .toLowerCase()
       .replace(/[^\w\s]/g, "") // remove punctuation
       .split(/\s+/)
-      .filter(Boolean);
+      .filter(Boolean); // remove empty strings
   };
 
   const set1 = new Set(tokenize(text1));
   const set2 = new Set(tokenize(text2));
 
-  const intersection = new Set([...set1].filter((word) => set2.has(word)));
+  const intersection = new Set([...set1].filter(word => set2.has(word)));
   const union = new Set([...set1, ...set2]);
 
   return union.size === 0 ? 0 : (intersection.size / union.size) * 100;
 }
+
 
 // Utility: Word Count
 function getWordCount(text) {
@@ -77,102 +77,78 @@ function getWordCount(text) {
   return words.filter(Boolean).length;
 }
 
-// Wrapper middleware to catch multer errors in async functions
-function multerErrorHandler(middleware) {
-  return (req, res, next) => {
-    middleware(req, res, (err) => {
-      if (err instanceof multer.MulterError) {
-        // Handle Multer errors explicitly
-        if (err.code === "LIMIT_FILE_SIZE") {
-          return res.status(400).json({ error: "File size too large. Max 10MB allowed." });
-        }
-        if (err.code === "LIMIT_UNEXPECTED_FILE") {
-          return res.status(400).json({ error: "Invalid file type. Only PDF, Word, or Text files allowed." });
-        }
-        return res.status(400).json({ error: err.message });
-      } else if (err) {
-        return res.status(500).json({ error: "File upload error." });
-      }
-      next();
-    });
-  };
-}
 
 // POST /create-assignment
-router.post(
-  "/create-assignment",
-  authenticate,
-  requireTeacher,
-  multerErrorHandler(upload.single("file")),
-  async (req, res) => {
-    try {
-      const { type, title, description, deadline, classroomId } = req.body;
-      const teacherId = req.teacherId;
+router.post("/create-assignment", authenticate, requireTeacher, upload.single("file"), async (req, res) => {
+  try {
+    const { type, title, description, deadline, classroomId } = req.body;
+    const teacherId = req.teacherId;
 
-      if (!type || !title || !deadline || !classroomId) {
-        return res.status(400).json({ error: "Missing required fields" });
-      }
-
-      const deadlineDate = new Date(deadline);
-      if (isNaN(deadlineDate.getTime()) || deadlineDate <= new Date()) {
-        return res.status(400).json({ error: "Deadline must be a valid future date" });
-      }
-
-      const classroom = await Classroom.findById(classroomId);
-      if (!classroom) return res.status(404).json({ error: "Classroom not found" });
-
-      const submissions = classroom.students.map((student) => ({
-        studentId: student.studentId,
-        name: student.name,
-        email: student.email,
-        submitted: false,
-        fileName: "",
-        extractedText: "",
-        plagiarismPercent: null,
-      }));
-
-      let questionFile = null;
-      if (req.file) {
-        questionFile = {
-          data: req.file.buffer,
-          contentType: req.file.mimetype,
-          originalName: req.file.originalname,
-        };
-      }
-
-      const newAssignment = new Assignment({
-        type,
-        title,
-        description,
-        deadline: deadlineDate,
-        teacherId,
-        classroomId,
-        questionFile,
-        submissions,
-      });
-
-      await newAssignment.save();
-
-      if (type.toLowerCase() === "assignment") {
-        classroom.assignments.push(newAssignment._id);
-        classroom.numAssignments += 1;
-      } else if (type.toLowerCase() === "exam") {
-        classroom.exams.push(newAssignment._id);
-        classroom.numExams += 1;
-      }
-
-      await classroom.save();
-
-      res.status(201).json({
-        message: "Assignment created successfully",
-        assignmentId: newAssignment._id,
-      });
-    } catch (error) {
-      console.error("Error creating assignment:", error);
-      res.status(500).json({ error: "Server error" });
+    if (!type || !title || !deadline || !classroomId) {
+      return res.status(400).json({ error: "Missing required fields" });
     }
+
+    const deadlineDate = new Date(deadline);
+    if (isNaN(deadlineDate.getTime()) || deadlineDate <= new Date()) {
+      return res.status(400).json({ error: "Deadline must be a valid future date" });
+    }
+
+    const classroom = await Classroom.findById(classroomId);
+    if (!classroom) return res.status(404).json({ error: "Classroom not found" });
+
+    const submissions = classroom.students.map((student) => ({
+      studentId: student.studentId,
+      name: student.name,
+      email: student.email,
+      submitted: false,
+      fileName: "",
+      extractedText: "",
+      plagiarismPercent: null,
+    }));
+
+    let questionFile = null;
+    if (req.file) {
+      questionFile = {
+        data: req.file.buffer,
+        contentType: req.file.mimetype,
+        originalName: req.file.originalname
+      };
+    }
+
+    const newAssignment = new Assignment({
+      type,
+      title,
+      description,
+      deadline: deadlineDate,
+      teacherId,
+      classroomId,
+      questionFile,
+      submissions,
+    });
+
+    await newAssignment.save();
+
+    // Update classroom with assignment/exam reference
+    if (type.toLowerCase() === "assignment") {
+      classroom.assignments.push(newAssignment._id);
+      classroom.numAssignments += 1;
+    } else if (type.toLowerCase() === "exam") {
+      classroom.exams.push(newAssignment._id);
+      classroom.numExams += 1;
+    }
+
+    await classroom.save();
+
+    res.status(201).json({
+      message: "Assignment created successfully",
+      assignmentId: newAssignment._id,
+    });
+  } catch (error) {
+    console.error("Error creating assignment:", error);
+    res.status(500).json({ error: "Server error" });
   }
-);
+});
+
 
 // GET /view/:assignmentId
 router.get("/view/:assignmentId", authenticate, requireTeacher, async (req, res) => {
@@ -190,12 +166,11 @@ router.get("/view/:assignmentId", authenticate, requireTeacher, async (req, res)
     const classSize = assignment.classroomId.students.length;
     const students = assignment.classroomId.students;
 
-    let submitted = 0,
-      checked = 0;
+    let submitted = 0, checked = 0;
 
-    const studentSubmissions = students.map((student) => {
+    const studentSubmissions = students.map(student => {
       const submission = assignment.submissions.find(
-        (sub) => sub.studentId.toString() === student.studentId.toString()
+        sub => sub.studentId.toString() === student.studentId.toString()
       );
 
       if (submission) {
@@ -212,7 +187,7 @@ router.get("/view/:assignmentId", authenticate, requireTeacher, async (req, res)
           fileName: submission.fileName || "Uploaded",
           plagiarismPercent: submission.plagiarismPercent ?? "Not checked",
           extractedText: submission.extractedText,
-          isChecked: submission.plagiarismPercent !== null && submission.plagiarismPercent !== undefined,
+          isChecked: submission.plagiarismPercent !== null && submission.plagiarismPercent !== undefined
         };
       } else {
         return {
@@ -223,7 +198,7 @@ router.get("/view/:assignmentId", authenticate, requireTeacher, async (req, res)
           fileName: "No submission",
           plagiarismPercent: "—",
           extractedText: null,
-          isChecked: false,
+          isChecked: false
         };
       }
     });
@@ -237,7 +212,7 @@ router.get("/view/:assignmentId", authenticate, requireTeacher, async (req, res)
       submitted,
       pending: classSize - submitted,
       checked,
-      studentSubmissions,
+      studentSubmissions
     });
   } catch (error) {
     console.error("Error fetching assignment view:", error);
@@ -256,7 +231,7 @@ router.post("/check-plagiarism/:assignmentId", authenticate, requireTeacher, asy
       return res.status(404).json({ error: "Assignment not found" });
     }
 
-    const submissions = assignment.submissions.filter((sub) => sub.submitted && sub.extractedText);
+    const submissions = assignment.submissions.filter(sub => sub.submitted && sub.extractedText);
 
     if (submissions.length < 2) {
       return res.status(400).json({ error: "Not enough submissions to check plagiarism." });
@@ -280,35 +255,30 @@ router.post("/check-plagiarism/:assignmentId", authenticate, requireTeacher, asy
             name: other.name,
             email: other.email,
             similarity,
-            matchedText: other.extractedText,
+            matchedText: other.extractedText
           });
         } catch (err) {
-          console.error(
-            `Error calculating similarity between submission ${current.studentId} and ${submissions[j].studentId}:`,
-            err
-          );
+          console.error(`Error calculating similarity between submission ${current.studentId} and ${submissions[j].studentId}:`, err);
         }
       }
 
       matches.sort((a, b) => b.similarity - a.similarity);
 
-      const topMatches = matches.slice(0, 2).map((match) => ({
+      const topMatches = matches.slice(0, 2).map(match => ({
         matchedStudentId: match.matchedStudentId,
         matchedText: match.matchedText,
-        plagiarismPercent: parseFloat(match.similarity.toFixed(2)),
+        plagiarismPercent: parseFloat(match.similarity.toFixed(2))
       }));
 
-      const allMatches = matches.map((match) => ({
+      const allMatches = matches.map(match => ({
         name: match.name,
-        plagiarismPercent: parseFloat(match.similarity.toFixed(2)),
+        plagiarismPercent: parseFloat(match.similarity.toFixed(2))
       }));
 
       const plagiarismPercent = topMatches.length > 0 ? topMatches[0].plagiarismPercent : 0;
       const wordCount = getWordCount(currentText);
 
-      const submissionToUpdate = assignment.submissions.find(
-        (sub) => sub.studentId.toString() === current.studentId.toString()
-      );
+      const submissionToUpdate = assignment.submissions.find(sub => sub.studentId.toString() === current.studentId.toString());
 
       if (submissionToUpdate) {
         submissionToUpdate.wordCount = wordCount;
@@ -325,6 +295,7 @@ router.post("/check-plagiarism/:assignmentId", authenticate, requireTeacher, asy
       totalSubmissions: submissions.length,
       checkedAt: new Date(),
     });
+
   } catch (err) {
     console.error("Error during plagiarism check:", err);
     return res.status(500).json({ error: "Internal server error during plagiarism check." });
@@ -336,31 +307,40 @@ router.get("/view-report/:assignmentId/:studentId", authenticate, requireTeacher
   const { assignmentId, studentId } = req.params;
 
   try {
-    const assignment = await Assignment.findById(assignmentId).populate("classroomId", "name").lean();
+    const assignment = await Assignment.findById(assignmentId)
+      .populate("classroomId", "name")
+      .lean();
 
     if (!assignment) {
       return res.status(404).json({ error: "Assignment not found" });
     }
 
-    const submission = assignment.submissions.find((sub) => sub.studentId.toString() === studentId.toString());
+    const submission = assignment.submissions.find(
+      (sub) => sub.studentId.toString() === studentId.toString()
+    );
 
     if (!submission || !submission.submitted) {
-      return res.status(404).json({ error: "Submission not found or not submitted" });
+      return res.status(404).json({ error: "Submission not found or not submitted yet" });
     }
 
-    res.json({
-      studentId: submission.studentId,
-      name: submission.name,
-      email: submission.email,
-      wordCount: submission.wordCount ?? getWordCount(submission.extractedText),
-      plagiarismPercent: submission.plagiarismPercent ?? 0,
-      topMatches: submission.topMatches ?? [],
-      allMatches: submission.allMatches ?? [],
-      extractedText: submission.extractedText,
-    });
-  } catch (err) {
-    console.error("Error fetching plagiarism report:", err);
-    res.status(500).json({ error: "Server error" });
+    const reportData = {
+      assignmentTitle: assignment.title,
+      assignmentType: assignment.type,
+      studentName: submission.name,
+      studentEmail: submission.email,
+      submittedDate: submission.submittedAt || null,
+      fileName: submission.fileName || "No filename available",
+      plagiarismPercent: submission.plagiarismPercent ?? "Not checked",
+      wordCount: submission.wordCount ?? 0,
+      extractedText: submission.extractedText || "No extracted text available",
+      topMatches: submission.topMatches || [],
+      allMatches: submission.allMatches || [],
+    };
+
+    return res.status(200).json(reportData);
+  } catch (error) {
+    console.error("Error fetching plagiarism report:", error);
+    return res.status(500).json({ error: "Server error while fetching report" });
   }
 });
 
