@@ -81,7 +81,11 @@ const UploadCheck = () => {
 
   const analyzeFiles = async () => {
     if (files.length === 0) {
-        toast.error("Please upload at least one document to check for plagiarism.");
+      toast({
+        title: "Error",
+        description: "Please upload at least one document to check for plagiarism.",
+        variant: "destructive",
+      });
         return;
     }
 
@@ -112,9 +116,16 @@ const UploadCheck = () => {
         const uploadData = await uploadResponse.json();
         setResults(uploadData.results);
 
-        toast.success("Plagiarism analysis completed.");
+        toast({
+          title: "Success",
+          description: "Plagiarism analysis completed..",
+        });
     } catch (error) {
-        toast.error(error.message);
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive", 
+      });
     } finally {
         setIsAnalyzing(false);
     }
@@ -144,7 +155,11 @@ const viewReport = async () => {
     window.open(url, '_blank'); // Open in a new tab
     URL.revokeObjectURL(url); // Clean up the URL object
   } catch (error) {
-    toast.error(error.message);
+    toast({
+      title: "Error",
+      description: error.message,
+      variant: "destructive", 
+    });
   }
 };
 
@@ -175,9 +190,16 @@ const viewReport = async () => {
         a.click();
         window.URL.revokeObjectURL(url);
 
-        toast.success("Report downloaded successfully.");
+        toast({
+          title: "Success",
+          description: "Report downloaded successfully.",
+        });
     } catch (error) {
-        toast.error(error.message);
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive", // It's good practice to use the 'destructive' variant for errors
+      });
     }
   };
 

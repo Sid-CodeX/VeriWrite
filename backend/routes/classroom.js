@@ -30,7 +30,7 @@ const requireTeacher = (req, res, next) => {
   next();
 };
 
-// POST /create-classroom
+// Create classroom
 router.post("/create-classroom", authenticate, requireTeacher, async (req, res) => {
   try {
     const { name, description } = req.body;
@@ -141,7 +141,7 @@ router.post("/add-student", authenticate, requireTeacher, async (req, res) => {
   }
 });
 
-// GET /view-course/:id
+// View course
 router.get("/view-course/:id", authenticate, requireTeacher, async (req, res) => {
   try {
     const classroomId = req.params.id;
