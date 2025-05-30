@@ -1,11 +1,9 @@
 import React from 'react';
 import { cn } from '@/lib/utils';
 
-// MODIFICATION: Extend React.HTMLAttributes<HTMLDivElement>
-// This allows the component to accept standard HTML attributes like 'id', 'onClick', 'style', etc.
 interface GlassmorphismCardProps extends React.HTMLAttributes<HTMLDivElement> {
   children: React.ReactNode;
-  // 'className' is already included in React.HTMLAttributes, so no need to declare it again here.
+  
   hoverEffect?: boolean;
   intensity?: 'light' | 'medium' | 'heavy';
 }
@@ -15,7 +13,7 @@ const GlassmorphismCard: React.FC<GlassmorphismCardProps> = ({
   className,
   hoverEffect = true,
   intensity = 'medium',
-  ...props // MODIFICATION: Capture all other props (including 'id')
+  ...props // Capture all other props (including 'id')
 }) => {
   const intensityClasses = {
     light: 'bg-white/5 backdrop-blur-sm border-white/10',
