@@ -5,19 +5,21 @@ import GlassmorphismCard from './ui/GlassmorphismCard';
 import { useToast } from '@/hooks/use-toast';
 import axios from 'axios';
 
+// Define the API base URL from your environment variables
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 interface Student {
-  studentId: string; // This is _id from MongoDB for active students
-  name: string;
+  studentId: string; // This will be _id for active students or userId for blocked students
+  name: string;      // For blocked, this will default to email if backend doesn't send name
   email: string;
   status: 'active' | 'blocked';
 }
 
+// Interface to match the structure of blocked students received from your backend
 interface BlockedStudentBackend {
-  userId: string; // This is _id from MongoDB for blocked users
+  userId: string;
   email: string;
-  // name might be missing here if your backend doesn't return it for blockedUsers
+  // Note: 'name' is not provided by your backend for blockedUsers in /students/:classroomId
 }
 
 interface ManageStudentsProps {
@@ -48,31 +50,29 @@ const ManageStudents = ({ courseId, onClose, onStudentsUpdated }: ManageStudents
         return;
       }
 
-      // ****** IMPORTANT CHANGE HERE: Corrected API endpoint ******
+      // Fetches both active and blocked students from your dedicated backend endpoint
       const response = await axios.get(`${API_BASE_URL}/api/courses/students/${courseId}`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
       });
 
-      // Destructure the response to get both students and blockedStudents
+      // Destructure the response data as provided by your backend
       const { students: fetchedActiveStudents, blockedStudents: fetchedBlockedStudents } = response.data;
 
-      // Map active students to include status: 'active'
+      // Map active students to the Student interface, setting status 'active'
       const mappedActiveStudents: Student[] = fetchedActiveStudents.map((s: any) => ({
-        studentId: s.studentId, // Assuming studentId is the correct field from backend
+        studentId: s.studentId,
         name: s.name,
         email: s.email,
         status: 'active',
       }));
 
-      // Map blocked students to include status: 'blocked'
-      // NOTE: Your backend's blockedUsers only return userId and email.
-      // If you need the name for blocked students, your backend's `blockedUsers`
-      // array should include it, or you'd need to fetch user details separately.
+      // Map blocked students to the Student interface, setting status 'blocked'
+      // Since your backend's blockedUsers doesn't include 'name', we fall back to 'email'
       const mappedBlockedStudents: Student[] = fetchedBlockedStudents.map((s: BlockedStudentBackend) => ({
-        studentId: s.userId, // Use userId as studentId for blocked students
-        name: s.email, // Fallback to email for name if name isn't provided by backend for blockedUsers
+        studentId: s.userId, // Use userId for blocked students
+        name: s.email,       // Backend doesn't provide 'name' for blocked students, so use email
         email: s.email,
         status: 'blocked',
       }));
@@ -109,6 +109,7 @@ const ManageStudents = ({ courseId, onClose, onStudentsUpdated }: ManageStudents
     setIsAddingStudent(true);
     try {
       const token = localStorage.getItem('token');
+      // Backend expects classroomId and studentEmail in the request body for /add-student (POST)
       const response = await axios.post(`${API_BASE_URL}/api/courses/add-student`, {
         classroomId: courseId,
         studentEmail: newStudentEmail,
@@ -125,7 +126,7 @@ const ManageStudents = ({ courseId, onClose, onStudentsUpdated }: ManageStudents
 
       setNewStudentEmail('');
 
-      await fetchStudents();
+      await fetchStudents(); // Re-fetch to update the lists
       if (onStudentsUpdated) {
         await onStudentsUpdated();
       }
@@ -143,14 +144,17 @@ const ManageStudents = ({ courseId, onClose, onStudentsUpdated }: ManageStudents
   };
 
   const handleRemoveStudent = async (studentId: string, studentName: string) => {
-    if (!window.confirm(`Are you sure you want to remove ${studentName} from this course?`)) {
+    if (!window.confirm(`Are you sure you want to remove ${studentName} from this course? This action cannot be undone.`)) {
       return;
     }
 
     try {
       const token = localStorage.getItem('token');
-      // Ensure your backend supports this DELETE route
-      await axios.delete(`${API_BASE_URL}/api/courses/remove-student/${courseId}/${studentId}`, {
+      // Backend expects classroomId and studentId in the request body for /remove-student (POST)
+      await axios.post(`${API_BASE_URL}/api/courses/remove-student`, {
+        classroomId: courseId,
+        studentId: studentId,
+      }, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -161,7 +165,7 @@ const ManageStudents = ({ courseId, onClose, onStudentsUpdated }: ManageStudents
         description: `${studentName} has been removed from the course.`,
       });
 
-      await fetchStudents();
+      await fetchStudents(); // Re-fetch to update the lists
       if (onStudentsUpdated) {
         await onStudentsUpdated();
       }
@@ -183,7 +187,11 @@ const ManageStudents = ({ courseId, onClose, onStudentsUpdated }: ManageStudents
 
     try {
       const token = localStorage.getItem('token');
-      await axios.post(`${API_BASE_URL}/api/courses/${courseId}/block-student`, { studentId }, {
+      // Backend expects classroomId and studentId in the request body for /block-student (POST)
+      await axios.post(`${API_BASE_URL}/api/courses/block-student`, {
+        classroomId: courseId,
+        studentId: studentId,
+      }, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -216,7 +224,11 @@ const ManageStudents = ({ courseId, onClose, onStudentsUpdated }: ManageStudents
 
     try {
       const token = localStorage.getItem('token');
-      await axios.post(`${API_BASE_URL}/api/courses/${courseId}/unblock-student`, { studentId }, {
+      // Backend expects classroomId and studentId in the request body for /unblock-student (POST)
+      await axios.post(`${API_BASE_URL}/api/courses/unblock-student`, {
+        classroomId: courseId,
+        studentId: studentId,
+      }, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -323,6 +335,7 @@ const ManageStudents = ({ courseId, onClose, onStudentsUpdated }: ManageStudents
             {blockedStudents.map(student => (
               <div key={student.studentId} className="flex flex-col sm:flex-row sm:items-center justify-between p-3 bg-red-900/30 rounded-md border border-red-700/50">
                 <div className="flex-grow mb-2 sm:mb-0">
+                  {/* Displays email as name for blocked students since backend doesn't provide name */}
                   <p className="font-medium text-white">{student.name} <span className="text-xs text-red-300">(Blocked)</span></p>
                   <p className="text-sm text-muted-foreground">{student.email}</p>
                 </div>
