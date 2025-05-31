@@ -1,31 +1,75 @@
-
-import { useState } from 'react';
-import { UserX, UserPlus } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { UserMinus, UserPlus, Ban, UserCheck, XCircle } from 'lucide-react'; // Added Ban and UserCheck
 import CustomButton from './ui/CustomButton';
 import GlassmorphismCard from './ui/GlassmorphismCard';
 import { useToast } from '@/hooks/use-toast';
+import axios from 'axios';
+
+// Define the API base URL from your environment variables
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 interface Student {
-  id: string;
+  studentId: string;
   name: string;
   email: string;
-  status: 'active' | 'blocked';
+  status: 'active' | 'blocked'; // Explicitly added status
 }
 
 interface ManageStudentsProps {
   courseId: string;
   onClose: () => void;
+  onStudentsUpdated?: () => Promise<void>;
 }
 
-const ManageStudents = ({ courseId, onClose }: ManageStudentsProps) => {
+const ManageStudents = ({ courseId, onClose, onStudentsUpdated }: ManageStudentsProps) => {
   const { toast } = useToast();
   const [newStudentEmail, setNewStudentEmail] = useState('');
-  const [students, setStudents] = useState<Student[]>([
-    { id: '1', name: 'John Doe', email: 'john@example.com', status: 'active' },
-    { id: '2', name: 'Jane Smith', email: 'jane@example.com', status: 'active' }
-  ]);
+  const [activeStudents, setActiveStudents] = useState<Student[]>([]); // Separated active
+  const [blockedStudents, setBlockedStudents] = useState<Student[]>([]); // New state for blocked
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSendingInvite, setIsSendingInvite] = useState(false); // To disable invite button
 
-  const handleAddStudent = () => {
+  const fetchStudents = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        toast({
+          title: "Authentication Error",
+          description: "No token found. Please log in.",
+          variant: "destructive",
+        });
+        onClose();
+        return;
+      }
+
+      const response = await axios.get(`${API_BASE_URL}/api/courses/view-course/${courseId}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const fetchedStudents: Student[] = response.data.students || [];
+      setActiveStudents(fetchedStudents.filter(s => s.status === 'active'));
+      setBlockedStudents(fetchedStudents.filter(s => s.status === 'blocked'));
+
+    } catch (error: any) {
+      console.error("Error fetching students:", error);
+      toast({
+        title: "Error",
+        description: error.response?.data?.error || "Failed to load student list.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [courseId, toast, onClose]);
+
+  useEffect(() => {
+    fetchStudents();
+  }, [fetchStudents]);
+
+  const handleAddStudent = async () => {
     if (!newStudentEmail.trim()) {
       toast({
         title: "Email required",
@@ -35,105 +79,238 @@ const ManageStudents = ({ courseId, onClose }: ManageStudentsProps) => {
       return;
     }
 
-    // Mock student addition
-    const newStudent: Student = {
-      id: Date.now().toString(),
-      name: `Student ${students.length + 1}`,
-      email: newStudentEmail,
-      status: 'active'
-    };
+    setIsSendingInvite(true); // Disable button
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.post(`${API_BASE_URL}/api/courses/add-student`, {
+        classroomId: courseId,
+        studentEmail: newStudentEmail,
+      }, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
 
-    setStudents(prev => [...prev, newStudent]);
-    setNewStudentEmail('');
-    
-    toast({
-      title: "Student added",
-      description: `${newStudentEmail} has been added to the course.`,
-    });
-  };
+      toast({
+        title: "Student added",
+        description: `${response.data.student.email} has been added to the course.`,
+      });
 
-  const toggleStudentStatus = (studentId: string) => {
-    setStudents(prev => prev.map(student => {
-      if (student.id === studentId) {
-        const newStatus = student.status === 'active' ? 'blocked' : 'active';
-        toast({
-          title: `Student ${newStatus}`,
-          description: `${student.name} has been ${newStatus}.`,
-        });
-        return { ...student, status: newStatus };
+      setNewStudentEmail('');
+
+      await fetchStudents(); // Refetch students to update lists
+      if (onStudentsUpdated) {
+        await onStudentsUpdated();
       }
-      return student;
-    }));
+
+    } catch (error: any) {
+      console.error("Error adding student:", error);
+      toast({
+        title: "Error",
+        description: error.response?.data?.error || "Failed to add student.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSendingInvite(false); // Re-enable button
+    }
   };
 
-  const removeStudent = (studentId: string) => {
-    const student = students.find(s => s.id === studentId);
-    setStudents(prev => prev.filter(s => s.id !== studentId));
-    
-    if (student) {
+  const handleRemoveStudent = async (studentId: string, studentName: string) => {
+    if (!window.confirm(`Are you sure you want to remove ${studentName} from this course?`)) {
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('token');
+      // Ensure your backend supports this DELETE route
+      await axios.delete(`${API_BASE_URL}/api/courses/remove-student/${courseId}/${studentId}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
       toast({
         title: "Student removed",
-        description: `${student.name} has been removed from the course.`,
+        description: `${studentName} has been removed from the course.`,
+      });
+
+      await fetchStudents();
+      if (onStudentsUpdated) {
+        await onStudentsUpdated();
+      }
+
+    } catch (error: any) {
+      console.error("Error removing student:", error);
+      toast({
+        title: "Error",
+        description: error.response?.data?.error || "Failed to remove student.",
+        variant: "destructive",
       });
     }
   };
 
+  const handleBlockStudent = async (studentId: string, studentName: string) => {
+    if (!window.confirm(`Are you sure you want to block ${studentName}? They will lose access to this course.`)) {
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('token');
+      await axios.post(`${API_BASE_URL}/api/courses/${courseId}/block-student`, { studentId }, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      toast({
+        title: "Student Blocked",
+        description: `${studentName} has been blocked.`,
+      });
+
+      await fetchStudents(); // Re-fetch to update lists
+      if (onStudentsUpdated) {
+        await onStudentsUpdated();
+      }
+
+    } catch (error: any) {
+      console.error("Error blocking student:", error);
+      toast({
+        title: "Error",
+        description: error.response?.data?.error || "Failed to block student.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleUnblockStudent = async (studentId: string, studentName: string) => {
+    if (!window.confirm(`Are you sure you want to unblock ${studentName}? They will regain access to this course.`)) {
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('token');
+      await axios.post(`${API_BASE_URL}/api/courses/${courseId}/unblock-student`, { studentId }, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      toast({
+        title: "Student Unblocked",
+        description: `${studentName} has been unblocked.`,
+      });
+
+      await fetchStudents(); // Re-fetch to update lists
+      if (onStudentsUpdated) {
+        await onStudentsUpdated();
+      }
+
+    } catch (error: any) {
+      console.error("Error unblocking student:", error);
+      toast({
+        title: "Error",
+        description: error.response?.data?.error || "Failed to unblock student.",
+        variant: "destructive",
+      });
+    }
+  };
+
+
   return (
-    <GlassmorphismCard className="p-6">
-      <div className="flex justify-between items-start mb-6">
-        <h2 className="text-xl font-bold">Manage Students</h2>
-        <button 
+    <GlassmorphismCard className="p-6 w-full max-w-xl overflow-y-auto max-h-[90vh]">
+      <div className="flex justify-between items-center mb-6">
+        <h2 className="text-xl font-bold text-white">Manage Students</h2>
+        <button
           onClick={onClose}
           className="text-muted-foreground hover:text-foreground"
         >
-          ✕
+          <XCircle className="h-6 w-6" /> {/* Changed to XCircle for consistency */}
         </button>
       </div>
 
-      <div className="mb-6">
-        <div className="flex gap-2">
+      <form onSubmit={(e) => { e.preventDefault(); handleAddStudent(); }} className="space-y-4 mb-8 border-b border-border/50 pb-6">
+        <h3 className="text-lg font-semibold text-white">Invite Student</h3>
+        <div>
+          <label htmlFor="inviteEmail" className="block text-sm font-medium mb-1 text-white">Student Email</label>
           <input
             type="email"
-            placeholder="Enter student email"
-            className="flex-grow p-2 border border-border rounded-md bg-background"
+            id="inviteEmail"
+            className="w-full p-2 border border-border rounded-md bg-background text-foreground"
+            placeholder="student@example.com"
             value={newStudentEmail}
             onChange={(e) => setNewStudentEmail(e.target.value)}
+            required
           />
-          <CustomButton
-            onClick={handleAddStudent}
-            icon={<UserPlus className="h-4 w-4" />}
-          >
-            Add Student
-          </CustomButton>
         </div>
+        <CustomButton type="submit" disabled={isSendingInvite}>
+          {isSendingInvite ? 'Sending Invite...' : 'Send Invite'}
+        </CustomButton>
+      </form>
+
+      <div className="mb-8">
+        <h3 className="text-lg font-semibold text-white mb-4">Active Students ({activeStudents.length})</h3>
+        {isLoading ? (
+          <p className="text-white">Loading active students...</p>
+        ) : activeStudents.length === 0 ? (
+          <p className="text-muted-foreground">No active students enrolled yet.</p>
+        ) : (
+          <div className="space-y-3">
+            {activeStudents.map(student => (
+              <div key={student.studentId} className="flex flex-col sm:flex-row sm:items-center justify-between p-3 bg-secondary/30 rounded-md">
+                <div className="flex-grow mb-2 sm:mb-0">
+                  <p className="font-medium text-white">{student.name}</p>
+                  <p className="text-sm text-muted-foreground">{student.email}</p>
+                </div>
+                <div className="flex flex-col sm:flex-row gap-2"> {/* Buttons container */}
+                  <CustomButton
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleBlockStudent(student.studentId, student.name)}
+                    icon={<Ban className="h-4 w-4" />}
+                  >
+                    Block
+                  </CustomButton>
+                  <CustomButton
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => handleRemoveStudent(student.studentId, student.name)}
+                    icon={<UserMinus className="h-4 w-4" />}
+                  >
+                    Remove
+                  </CustomButton>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
-      <div className="space-y-4">
-        {students.map(student => (
-          <div key={student.id} className="flex items-center justify-between p-3 border border-border rounded-lg">
-            <div>
-              <p className="font-medium">{student.name}</p>
-              <p className="text-sm text-muted-foreground">{student.email}</p>
-            </div>
-            <div className="flex gap-2">
-              <CustomButton
-                variant="outline"
-                size="sm"
-                onClick={() => toggleStudentStatus(student.id)}
-              >
-                {student.status === 'active' ? 'Block' : 'Unblock'}
-              </CustomButton>
-              <CustomButton
-                variant="outline"
-                size="sm"
-                onClick={() => removeStudent(student.id)}
-                icon={<UserX className="h-4 w-4" />}
-              >
-                Remove
-              </CustomButton>
-            </div>
+      <div>
+        <h3 className="text-lg font-semibold text-white mb-4">Blocked Students ({blockedStudents.length})</h3>
+        {isLoading ? (
+          <p className="text-white">Loading blocked students...</p>
+        ) : blockedStudents.length === 0 ? (
+          <p className="text-muted-foreground">No students are currently blocked.</p>
+        ) : (
+          <div className="space-y-3">
+            {blockedStudents.map(student => (
+              <div key={student.studentId} className="flex flex-col sm:flex-row sm:items-center justify-between p-3 bg-red-900/30 rounded-md border border-red-700/50">
+                <div className="flex-grow mb-2 sm:mb-0">
+                  <p className="font-medium text-white">{student.name} <span className="text-xs text-red-300">(Blocked)</span></p>
+                  <p className="text-sm text-muted-foreground">{student.email}</p>
+                </div>
+                <CustomButton
+                  variant="success" // Assuming 'success' is a good visual for unblock
+                  size="sm"
+                  onClick={() => handleUnblockStudent(student.studentId, student.name)}
+                  icon={<UserCheck className="h-4 w-4" />}
+                >
+                  Unblock
+                </CustomButton>
+              </div>
+            ))}
           </div>
-        ))}
+        )}
       </div>
     </GlassmorphismCard>
   );
