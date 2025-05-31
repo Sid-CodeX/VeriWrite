@@ -1,467 +1,537 @@
-import { useEffect, useState } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react'; // Added useRef, useCallback
 import { useParams, useNavigate } from 'react-router-dom';
-import { 
-  PlusCircle, FileText, Calendar, Users, ArrowLeft, 
-  DownloadCloud, Trash2, UserPlus 
-} from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
+import { ChevronLeft, Plus, Trash2, Edit, UserPlus, FileText, UploadCloud, DownloadCloud } from 'lucide-react'; // Added DownloadCloud
+import axios from 'axios'; // Import axios
 
-import Navbar from '@/components/Navbar';
-import CustomButton from '@/components/ui/CustomButton';
 import GlassmorphismCard from '@/components/ui/GlassmorphismCard';
-import ManageStudents from '@/components/ManageStudents';
-import Footer from '@/components/Footer';
-import { format } from 'date-fns';
+import CustomButton from '@/components/ui/CustomButton';
+import AssignmentCard from '@/components/AssignmentCard';
+import ConfirmationModal from '@/components/ConfirmationModal';
+import { useToast } from '@/hooks/use-toast';
+import ManageStudents from '@/components/ManageStudents'; // Assuming this component exists
 
-interface Assignment {
-  id: string;
-  title: string;
-  deadline: Date;
-  submissionsCount: number;
-  totalStudents: number;
-  type: 'assignment' | 'exam';
-  description?: string;
-}
+// Define your API base URL from environment variables
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 interface Course {
   id: string;
   name: string;
   description: string;
   students: number;
-  color: string;
+  color: string; // Assuming color is still static for now
+}
+
+interface Assignment {
+  id: string;
+  type: 'assignment' | 'exam';
+  title: string;
+  deadline: string;
+  submissions: string; // e.g., "28/32"
+  description: string; // Added description
+  filePath?: string; // Added filePath for downloaded assignments
 }
 
 const CourseView = () => {
-  const { courseId } = useParams<{ courseId: string }>();
+  const { id: courseId } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
+
   const [course, setCourse] = useState<Course | null>(null);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // State for Create Assignment Modal
   const [showCreateAssignment, setShowCreateAssignment] = useState(false);
-  const [assignmentTitle, setAssignmentTitle] = useState('');
   const [assignmentType, setAssignmentType] = useState<'assignment' | 'exam'>('assignment');
+  const [assignmentTitle, setAssignmentTitle] = useState('');
+  const [description, setDescription] = useState('');
   const [assignmentDeadline, setAssignmentDeadline] = useState('');
   const [assignmentFile, setAssignmentFile] = useState<File | null>(null);
-  const [description, setDescription] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null); // Ref for file input
+
+  // State for Delete Confirmation Modal
+  const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<{ type: 'course' | 'assignment' | 'exam'; id: string; title?: string } | null>(null);
+
+  // State for Manage Students Modal
   const [showManageStudents, setShowManageStudents] = useState(false);
 
-  useEffect(() => {
-    window.scrollTo(0, 0);
-  }, []);
+  // Fetch Course Data and Assignments
+  const fetchCourseData = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        toast({
+          title: "Authentication Error",
+          description: "No token found. Please log in.",
+          variant: "destructive",
+        });
+        navigate('/login');
+        return;
+      }
 
-  useEffect(() => {
-    if (courseId) {
+      const response = await axios.get(`${API_BASE_URL}/api/courses/view-course/${courseId}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const data = response.data;
+
       setCourse({
-        id: courseId,
-        name: courseId === '1' ? 'Advanced Programming' : 
-              courseId === '2' ? 'Data Structures' : 
-              courseId === '3' ? 'Machine Learning' : 'Unknown Course',
-        description: 'This course covers advanced concepts and techniques.',
-        students: 32,
-        color: 'from-blue-500/20 to-blue-600/20'
+        id: data.id,
+        name: data.name,
+        description: data.description,
+        students: data.numStudents,
+        color: 'bg-indigo-500', // Static color for now
       });
 
-      setAssignments([
-        {
-          id: '1',
-          title: 'Midterm Assignment',
-          deadline: new Date(2023, 11, 15),
-          submissionsCount: 28,
-          totalStudents: 32,
-          type: 'assignment',
-          description: 'A comprehensive midterm assignment.'
-        },
-        {
-          id: '2',
-          title: 'Final Project',
-          deadline: new Date(2023, 11, 30),
-          submissionsCount: 20,
-          totalStudents: 32,
-          type: 'assignment',
-          description: 'An extensive final project to test cumulative knowledge.'
-        },
-        {
-          id: '3',
-          title: 'Practical Exam',
-          deadline: new Date(2023, 10, 25),
-          submissionsCount: 32,
-          totalStudents: 32,
-          type: 'exam',
-          description: 'A practical exam to evaluate hands-on skills.'
-        }
-      ]);
-    }
-  }, [courseId]);
+      const fetchedAssignments: Assignment[] = data.tasks.map((task: any) => {
+        const [submittedCountStr, totalStudentsStr] = task.submissions.split('/');
+        const submissionsCount = parseInt(submittedCountStr, 10);
+        const totalStudents = parseInt(totalStudentsStr, 10);
 
-  const handleDeleteAssignment = (assignmentId: string) => {
-    const assignment = assignments.find(a => a.id === assignmentId);
-    setAssignments(prev => prev.filter(a => a.id !== assignmentId));
-    
-    if (assignment) {
+        return {
+          id: task.id,
+          type: task.type,
+          title: task.title,
+          deadline: task.deadline,
+          submissions: `${submissionsCount}/${totalStudents}`, // Keep string format for display
+          description: task.description || '', // Ensure description is set
+          filePath: task.filePath || undefined, // Add filePath if available
+        };
+      }).sort((a: Assignment, b: Assignment) => new Date(a.deadline).getTime() - new Date(b.deadline).getTime());
+
+      setAssignments(fetchedAssignments);
+
+    } catch (err: any) {
+      console.error("Error fetching course data:", err);
+      setError(err.response?.data?.error || "Failed to load course details. It might not exist or you don't have access.");
       toast({
-        title: `${assignment.type === 'assignment' ? 'Assignment' : 'Exam'} deleted`,
-        description: `${assignment.title} has been deleted.`,
+        title: "Error",
+        description: err.response?.data?.error || "Failed to load course details.",
+        variant: "destructive",
       });
+      // If course not found, navigate back
+      if (err.response?.status === 404) {
+        navigate('/classroom');
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  }, [courseId, toast, navigate]);
+
+  useEffect(() => {
+    fetchCourseData();
+    window.scrollTo(0, 0); // Scroll to top on component mount
+  }, [fetchCourseData]);
+
+
+  // --- Handle Assignment Creation ---
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (event.target.files && event.target.files[0]) {
+      const file = event.target.files[0];
+      const fileSizeInMB = file.size / (1024 * 1024);
+      const allowedTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain'];
+
+      if (!allowedTypes.includes(file.type)) {
+        toast({
+          title: "Invalid File Type",
+          description: "Only PDF, Word (doc, docx), and Text (txt) files are allowed.",
+          variant: "destructive",
+        });
+        setAssignmentFile(null);
+        if (fileInputRef.current) fileInputRef.current.value = ''; // Clear input
+        return;
+      }
+
+      if (fileSizeInMB > 10) {
+        toast({
+          title: "File Too Large",
+          description: "Maximum file size is 10MB.",
+          variant: "destructive",
+        });
+        setAssignmentFile(null);
+        if (fileInputRef.current) fileInputRef.current.value = ''; // Clear input
+        return;
+      }
+
+      setAssignmentFile(file);
+    } else {
+      setAssignmentFile(null);
     }
   };
 
-  const handleDeleteCourse = () => {
-    if (window.confirm('Are you sure you want to delete this course? This action cannot be undone.')) {
-      toast({
-        title: "Course deleted",
-        description: `${course?.name} has been deleted.`,
-      });
-      navigate('/classroom');
-    }
-  };
-
-  const handleCreateAssignment = () => {
-    if (!assignmentTitle.trim()) {
-      toast({
-        title: "Assignment title required",
-        description: "Please enter a title for the assignment",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (!assignmentDeadline) {
-      toast({
-        title: "Deadline required",
-        description: "Please select a deadline for the assignment",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    const newAssignment: Assignment = {
-      id: Date.now().toString(),
-      title: assignmentTitle,
-      deadline: new Date(assignmentDeadline),
-      submissionsCount: 0,
-      totalStudents: course?.students || 0,
-      type: assignmentType,
-      description: description
-    };
-
-    setAssignments(prev => [newAssignment, ...prev]);
-    setAssignmentTitle('');
-    setAssignmentDeadline('');
+  const clearFile = () => {
     setAssignmentFile(null);
-    setDescription('');
-    setShowCreateAssignment(false);
-    
-    toast({
-      title: `${assignmentType === 'assignment' ? 'Assignment' : 'Exam'} created`,
-      description: `${newAssignment.title} has been created successfully.`,
-    });
-  };
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setAssignmentFile(e.target.files[0]);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''; // Clear the file input field
     }
   };
+
+  const handleCreateAssignment = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!assignmentTitle.trim() || !assignmentDeadline.trim()) {
+      toast({
+        title: "Missing Fields",
+        description: "Please fill in all required fields (Title, Deadline).",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Basic date validation
+    const deadlineDate = new Date(assignmentDeadline);
+    if (isNaN(deadlineDate.getTime()) || deadlineDate <= new Date()) {
+      toast({
+        title: "Invalid Deadline",
+        description: "Please select a future date and time for the deadline.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        toast({
+          title: "Authentication Error",
+          description: "No token found. Please log in.",
+          variant: "destructive",
+        });
+        navigate('/login');
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append('classroomId', courseId || '');
+      formData.append('title', assignmentTitle);
+      formData.append('type', assignmentType);
+      formData.append('deadline', assignmentDeadline);
+      formData.append('description', description); // Include description
+
+      if (assignmentFile) {
+        formData.append('file', assignmentFile); // Append the file
+      }
+
+      // --- IMPORTANT: Corrected Backend Endpoint ---
+      const response = await axios.post(`${API_BASE_URL}/api/assignment/create-assignment`, formData, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          // 'Content-Type': 'multipart/form-data', // Axios handles this automatically with FormData
+        },
+      });
+
+      toast({
+        title: "Success",
+        description: `${assignmentType === 'assignment' ? 'Assignment' : 'Exam'} "${assignmentTitle}" created successfully.`,
+      });
+
+      // Clear form and close modal
+      setAssignmentTitle('');
+      setDescription('');
+      setAssignmentDeadline('');
+      setAssignmentFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = ''; // Clear input field
+      setShowCreateAssignment(false);
+
+      // Refresh course data to show the new assignment
+      await fetchCourseData();
+
+    } catch (err: any) {
+      console.error("Error creating assignment:", err);
+      toast({
+        title: "Error Creating Assignment",
+        description: err.response?.data?.error || "An unexpected error occurred.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // --- Handle Delete Confirmation ---
+  const confirmDeletion = (type: 'course' | 'assignment' | 'exam', id: string, title?: string) => {
+    setItemToDelete({ type, id, title });
+    setShowDeleteConfirmation(true);
+  };
+
+  const handleDelete = async () => {
+    if (!itemToDelete) return;
+
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        toast({ title: "Auth Error", description: "No token found.", variant: "destructive" });
+        navigate('/login');
+        return;
+      }
+
+      if (itemToDelete.type === 'course') {
+        await axios.delete(`${API_BASE_URL}/api/courses/${itemToDelete.id}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        toast({ title: "Success", description: "Course deleted successfully." });
+        navigate('/classroom'); // Redirect after course deletion
+      } else { // assignment or exam
+        // Your backend uses /api/assignment/assignment/:id or /api/assignment/exam/:id
+        await axios.delete(`${API_BASE_URL}/api/assignment/${itemToDelete.type}/${itemToDelete.id}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        toast({ title: "Success", description: `${itemToDelete.type} deleted successfully.` });
+        await fetchCourseData(); // Refresh assignments list
+      }
+    } catch (err: any) {
+      console.error(`Error deleting ${itemToDelete.type}:`, err);
+      toast({
+        title: "Deletion Error",
+        description: err.response?.data?.error || `Failed to delete ${itemToDelete.type}.`,
+        variant: "destructive",
+      });
+    } finally {
+      setShowDeleteConfirmation(false);
+      setItemToDelete(null);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex justify-center items-center h-screen bg-gray-900 text-white">
+        <p>Loading course details...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col justify-center items-center h-screen text-red-500 bg-gray-900">
+        <p className="mb-4">{error}</p>
+        <CustomButton onClick={() => navigate('/classroom')}>Go to Classrooms</CustomButton>
+      </div>
+    );
+  }
 
   if (!course) {
     return (
-      <div className="min-h-screen flex flex-col">
-        <Navbar />
-        <main className="flex-grow pt-24 pb-16 px-6">
-          <div className="container max-w-6xl mx-auto">
-            <p>Loading course details...</p>
-          </div>
-        </main>
-        <Footer />
+      <div className="flex flex-col justify-center items-center h-screen text-white bg-gray-900">
+        <p className="mb-4">Course not found.</p>
+        <CustomButton onClick={() => navigate('/classroom')}>Go to Classrooms</CustomButton>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <Navbar />
-      
-      <main className="flex-grow pt-24 pb-16 px-6">
-        <div className="container max-w-6xl mx-auto">
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
-            <div className="flex items-center gap-3">
-              <CustomButton 
-                variant="outline" 
-                size="sm"
-                onClick={() => navigate('/classroom')}
-                icon={<ArrowLeft className="h-4 w-4" />}
-              >
-                Back to Classroom
-              </CustomButton>
-              <div>
-                <h1 className="text-3xl font-bold">{course.name}</h1>
-                <p className="text-muted-foreground mt-1">{course.description}</p>
-              </div>
-            </div>
-            
-            <div className="flex flex-col sm:flex-row gap-3">
-              <CustomButton
-                variant="outline"
-                onClick={() => setShowManageStudents(true)}
-                icon={<UserPlus className="h-4 w-4" />}
-              >
-                Manage Students
-              </CustomButton>
-              <CustomButton 
-                onClick={() => setShowCreateAssignment(true)}
-                icon={<PlusCircle className="h-4 w-4" />}
-              >
-                Create Assignment or Exam
-              </CustomButton>
-              <CustomButton 
-                variant="outline"
-                onClick={handleDeleteCourse}
-                icon={<Trash2 className="h-4 w-4" />}
-              >
-                Delete Course
-              </CustomButton>
-            </div>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-            <GlassmorphismCard className="p-6">
-              <div className="flex items-center gap-4">
-                <div className="p-3 bg-veri/10 rounded-full">
-                  <Users className="h-5 w-5 text-veri" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Students</p>
-                  <h3 className="text-2xl font-bold">{course.students}</h3>
-                </div>
-              </div>
-            </GlassmorphismCard>
-            
-            <GlassmorphismCard className="p-6">
-              <div className="flex items-center gap-4">
-                <div className="p-3 bg-veri/10 rounded-full">
-                  <FileText className="h-5 w-5 text-veri" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Assignments</p>
-                  <h3 className="text-2xl font-bold">{assignments.filter(a => a.type === 'assignment').length}</h3>
-                </div>
-              </div>
-            </GlassmorphismCard>
-            
-            <GlassmorphismCard className="p-6">
-              <div className="flex items-center gap-4">
-                <div className="p-3 bg-veri/10 rounded-full">
-                  <Calendar className="h-5 w-5 text-veri" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Exams</p>
-                  <h3 className="text-2xl font-bold">{assignments.filter(a => a.type === 'exam').length}</h3>
-                </div>
-              </div>
-            </GlassmorphismCard>
-          </div>
-          
-          {showManageStudents && (
-            <div className="mb-8">
-              <ManageStudents
-                courseId={courseId || ''}
-                onClose={() => setShowManageStudents(false)}
-              />
-            </div>
-          )}
-          
-          {showCreateAssignment && (
-            <GlassmorphismCard className="mb-8 p-6 animate-fade-in">
-              <h2 className="text-xl font-bold mb-4">{assignmentType === 'assignment' ? 'Create New Assignment' : 'Create New Exam'}</h2>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium mb-1">Type</label>
-                  <div className="flex gap-4">
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="radio"
-                        name="assignmentType"
-                        value="assignment"
-                        checked={assignmentType === 'assignment'}
-                        onChange={() => setAssignmentType('assignment')}
-                        className="h-4 w-4 text-veri"
-                      />
-                      <span>Assignment</span>
-                    </label>
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="radio"
-                        name="assignmentType"
-                        value="exam"
-                        checked={assignmentType === 'exam'}
-                        onChange={() => setAssignmentType('exam')}
-                        className="h-4 w-4 text-veri"
-                      />
-                      <span>Exam</span>
-                    </label>
-                  </div>
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium mb-1">Title*</label>
-                  <input
-                    type="text"
-                    className="w-full p-2 border border-border rounded-md bg-background"
-                    placeholder={`e.g., Midterm ${assignmentType === 'assignment' ? 'Assignment' : 'Exam'}`}
-                    value={assignmentTitle}
-                    onChange={(e) => setAssignmentTitle(e.target.value)}
-                  />
-                </div>
+    <div className="container mx-auto px-4 py-8">
+      {/* Back Button */}
+      <CustomButton
+        onClick={() => navigate('/classroom')}
+        variant="outline"
+        className="mb-6 flex items-center"
+      >
+        <ChevronLeft className="h-4 w-4 mr-2" /> Back to Classrooms
+      </CustomButton>
 
-                <div>
-                  <label className="block text-sm font-medium mb-1">Description</label>
-                  <textarea
-                    className="w-full p-2 border border-border rounded-md bg-background"
-                    rows={3}
-                    placeholder="Enter assignment description..."
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium mb-1">Deadline*</label>
-                  <input
-                    type="date"
-                    className="w-full p-2 border border-border rounded-md bg-background"
-                    value={assignmentDeadline}
-                    onChange={(e) => setAssignmentDeadline(e.target.value)}
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium mb-1">Upload File (Optional)</label>
-                  <div className="border border-dashed border-border rounded-md p-6 text-center bg-background/60">
-                    <div className="flex flex-col items-center">
-                      <DownloadCloud className="h-10 w-10 text-muted-foreground mb-2" />
-                      <p className="text-sm text-muted-foreground mb-2">
-                        Drag and drop a file, or <span className="text-veri font-medium">browse</span>
-                      </p>
-                      <p className="text-xs text-muted-foreground mb-4">
-                        PDF, Word or Text files (max 10MB)
-                      </p>
-                      <input
-                        type="file"
-                        id="fileUpload"
-                        className="hidden"
-                        accept=".pdf,.doc,.docx,.txt"
-                        onChange={handleFileChange}
-                      />
-                      <label htmlFor="fileUpload">
-                        <CustomButton
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                        >
-                          Select File
-                        </CustomButton>
-                      </label>
-                    </div>
-                    
-                    {assignmentFile && (
-                      <div className="mt-4 p-3 bg-secondary/50 rounded-md">
-                        <p className="text-sm font-medium truncate">{assignmentFile.name}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {(assignmentFile.size / 1024 / 1024).toFixed(2)} MB
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-                
-                <div className="flex gap-3 justify-end">
-                  <CustomButton
-                    variant="outline"
-                    onClick={() => setShowCreateAssignment(false)}
-                  >
-                    Cancel
-                  </CustomButton>
-                  <CustomButton onClick={handleCreateAssignment}>
-                    Create {assignmentType === 'assignment' ? 'Assignment' : 'Exam'}
-                  </CustomButton>
-                </div>
-              </div>
-            </GlassmorphismCard>
-          )}
-          
-          <h2 className="text-xl font-bold mb-4">Assignments & Exams</h2>
-          <div className="space-y-4">
-            {assignments.length > 0 ? (
-              assignments.map((assignment) => (
-                <GlassmorphismCard key={assignment.id} className="p-6 hover:shadow-md transition-all">
-                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <div className="flex-grow">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className={`px-2 py-0.5 text-xs rounded-full ${
-                          assignment.type === 'exam' 
-                            ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300' 
-                            : 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300'
-                        }`}>
-                          {assignment.type === 'exam' ? 'Exam' : 'Assignment'}
-                        </span>
-                        <h3 className="font-semibold">{assignment.title}</h3>
-                      </div>
-                      
-                      <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-muted-foreground">
-                        <div className="flex items-center gap-1">
-                          <Calendar className="h-4 w-4" />
-                          <span>Due: {format(assignment.deadline, 'MMM d, yyyy')}</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Users className="h-4 w-4" />
-                          <span>
-                            Submissions: {assignment.submissionsCount}/{assignment.totalStudents}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div className="flex items-center gap-2">
-                      <CustomButton 
-                        onClick={() => navigate(`/classroom/${courseId}/assignment/${assignment.id}`)}
-                        size="sm"
-                      >
-                        View {assignment.type === 'exam' ? 'Exam' : 'Assignment'}
-                      </CustomButton>
-                      <CustomButton 
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleDeleteAssignment(assignment.id)}
-                        icon={<Trash2 className="h-4 w-4" />}
-                      >
-                        Delete
-                      </CustomButton>
-                    </div>
-                  </div>
-                </GlassmorphismCard>
-              ))
-            ) : (
-              <div className="text-center py-12 bg-muted/30 rounded-lg border border-border">
-                <div className="mx-auto w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4">
-                  <FileText className="h-8 w-8 text-muted-foreground" />
-                </div>
-                <h3 className="text-lg font-semibold mb-2">No assignments yet</h3>
-                <p className="text-muted-foreground mb-6">
-                  Create your first assignment to get started.
-                </p>
-                <CustomButton 
-                  onClick={() => setShowCreateAssignment(true)}
-                  icon={<PlusCircle className="h-4 w-4" />}
-                >
-                  Create Assignment
-                </CustomButton>
-              </div>
-            )}
+      {/* Course Header */}
+      <GlassmorphismCard className={`p-6 mb-8 ${course.color}`}>
+        <div className="flex justify-between items-start mb-4">
+          <div>
+            <h1 className="text-3xl font-bold mb-2">{course.name}</h1>
+            <p className="text-lg text-gray-200">{course.description}</p>
+          </div>
+          <div className="flex gap-2">
+            <CustomButton onClick={() => setShowManageStudents(true)} variant="secondary" size="sm">
+              <UserPlus className="h-4 w-4 mr-2" /> Manage Students
+            </CustomButton>
+            {/* <CustomButton variant="outline" size="sm">
+              <Edit className="h-4 w-4 mr-2" /> Edit Course
+            </CustomButton> */}
+            <CustomButton onClick={() => confirmDeletion('course', course.id, course.name)} variant="destructive" size="sm">
+              <Trash2 className="h-4 w-4 mr-2" /> Delete Course
+            </CustomButton>
           </div>
         </div>
-      </main>
-      
-      <Footer />
+        <div className="flex items-center text-lg mt-4">
+          <p className="mr-4">Students: {course.students}</p>
+          {/* Add other stats like number of assignments/exams if desired */}
+        </div>
+      </GlassmorphismCard>
+
+      {/* Assignments and Exams Section */}
+      <div className="flex justify-between items-center mb-6">
+        <h2 className="text-2xl font-bold text-white">Assignments & Exams</h2>
+        <CustomButton onClick={() => setShowCreateAssignment(true)} icon={<Plus className="h-4 w-4" />}>
+          Create New
+        </CustomButton>
+      </div>
+
+      {assignments.length === 0 ? (
+        <GlassmorphismCard className="p-6 text-center text-muted-foreground">
+          <p>No assignments or exams have been created yet. Click "Create New" to add one.</p>
+        </GlassmorphismCard>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {assignments.map(assignment => (
+            <AssignmentCard
+              key={assignment.id}
+              assignment={assignment}
+              onDelete={() => confirmDeletion(assignment.type, assignment.id, assignment.title)}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Create Assignment Modal */}
+      {showCreateAssignment && (
+        <div className="fixed inset-0 bg-black bg-opacity-70 flex justify-center items-center z-50 p-4">
+          <GlassmorphismCard className="p-6 w-full max-w-2xl">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-bold">Create New {assignmentType === 'assignment' ? 'Assignment' : 'Exam'}</h2>
+              <button
+                onClick={() => setShowCreateAssignment(false)}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateAssignment} className="space-y-4">
+              {/* Type Selection */}
+              <div>
+                <label className="block text-sm font-medium mb-1">Type</label>
+                <select
+                  value={assignmentType}
+                  onChange={(e) => setAssignmentType(e.target.value as 'assignment' | 'exam')}
+                  className="w-full p-2 border border-border rounded-md bg-background text-foreground"
+                >
+                  <option value="assignment">Assignment</option>
+                  <option value="exam">Exam</option>
+                </select>
+              </div>
+
+              {/* Title */}
+              <div>
+                <label className="block text-sm font-medium mb-1">Title</label>
+                <input
+                  type="text"
+                  value={assignmentTitle}
+                  onChange={(e) => setAssignmentTitle(e.target.value)}
+                  className="w-full p-2 border border-border rounded-md bg-background text-foreground"
+                  placeholder="e.g., Chapter 1 Homework"
+                  required
+                />
+              </div>
+
+              {/* Description */}
+              <div>
+                <label className="block text-sm font-medium mb-1">Description (Optional)</label>
+                <textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  className="w-full p-2 border border-border rounded-md bg-background text-foreground min-h-[80px]"
+                  placeholder="Provide details about the assignment..."
+                ></textarea>
+              </div>
+
+              {/* Deadline */}
+              <div>
+                <label className="block text-sm font-medium mb-1">Deadline</label>
+                <input
+                  type="datetime-local"
+                  value={assignmentDeadline}
+                  onChange={(e) => setAssignmentDeadline(e.target.value)}
+                  className="w-full p-2 border border-border rounded-md bg-background text-foreground"
+                  required
+                />
+              </div>
+
+              {/* File Upload Section */}
+              <div>
+                <label className="block text-sm font-medium mb-1">Upload File (Optional)</label>
+                <div className="border border-dashed border-border rounded-md p-6 text-center bg-background/60">
+                  <div className="flex flex-col items-center">
+                    <DownloadCloud className="h-10 w-10 text-muted-foreground mb-2" />
+                    <p className="text-sm text-muted-foreground mb-2">
+                      Drag and drop a file, or <span className="text-veri font-medium">browse</span>
+                    </p>
+                    <p className="text-xs text-muted-foreground mb-4">
+                      PDF, Word or Text files (max 10MB)
+                    </p>
+                    {/* Hidden input field */}
+                    <input
+                      type="file"
+                      id="fileUpload"
+                      className="hidden" // Hides the default input
+                      accept=".pdf,.doc,.docx,.txt"
+                      onChange={handleFileChange}
+                      ref={fileInputRef} // Assign the ref
+                    />
+                    {/* Label acts as the clickable area for the hidden input */}
+                    <label htmlFor="fileUpload">
+                      <CustomButton
+                        type="button" // Important: type="button" to prevent form submission
+                        variant="outline"
+                        size="sm"
+                        onClick={() => fileInputRef.current?.click()} // Programmatically click the input
+                      >
+                        Select File
+                      </CustomButton>
+                    </label>
+                  </div>
+
+                  {assignmentFile && (
+                    <div className="mt-4 p-3 bg-secondary/50 rounded-md flex items-center justify-between">
+                      <p className="text-sm font-medium truncate">{assignmentFile.name}</p>
+                      <button
+                        type="button"
+                        onClick={clearFile}
+                        className="text-muted-foreground hover:text-foreground text-xl leading-none"
+                        aria-label="Remove file"
+                      >
+                        &times;
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+
+              {/* Submit Button */}
+              <div className="flex justify-end">
+                <CustomButton type="submit" icon={<Plus className="h-4 w-4" />}>
+                  Create
+                </CustomButton>
+              </div>
+            </form>
+          </GlassmorphismCard>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirmation && itemToDelete && (
+        <ConfirmationModal
+          isOpen={showDeleteConfirmation}
+          onClose={() => setShowDeleteConfirmation(false)}
+          onConfirm={handleDelete}
+          title={`Delete ${itemToDelete.type === 'course' ? 'Course' : itemToDelete.type === 'assignment' ? 'Assignment' : 'Exam'}`}
+          message={`Are you sure you want to delete "${itemToDelete.title || itemToDelete.type}"? This action cannot be undone.`}
+          confirmText="Delete"
+          cancelText="Cancel"
+          confirmVariant="destructive"
+        />
+      )}
+
+      {/* Manage Students Modal */}
+      {showManageStudents && courseId && (
+        <div className="fixed inset-0 bg-black bg-opacity-70 flex justify-center items-center z-50 p-4">
+          <ManageStudents
+            courseId={courseId}
+            onClose={() => setShowManageStudents(false)}
+            onStudentsUpdated={fetchCourseData} // Callback to refresh course data
+          />
+        </div>
+      )}
     </div>
   );
 };
