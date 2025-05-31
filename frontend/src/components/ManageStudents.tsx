@@ -1,18 +1,23 @@
 import { useState, useEffect, useCallback } from 'react';
-import { UserMinus, UserPlus, Ban, UserCheck, XCircle } from 'lucide-react'; // Added Ban and UserCheck
+import { UserMinus, UserPlus, Ban, UserCheck, XCircle } from 'lucide-react';
 import CustomButton from './ui/CustomButton';
 import GlassmorphismCard from './ui/GlassmorphismCard';
 import { useToast } from '@/hooks/use-toast';
 import axios from 'axios';
 
-// Define the API base URL from your environment variables
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 interface Student {
-  studentId: string;
+  studentId: string; // This is _id from MongoDB for active students
   name: string;
   email: string;
-  status: 'active' | 'blocked'; // Explicitly added status
+  status: 'active' | 'blocked';
+}
+
+interface BlockedStudentBackend {
+  userId: string; // This is _id from MongoDB for blocked users
+  email: string;
+  // name might be missing here if your backend doesn't return it for blockedUsers
 }
 
 interface ManageStudentsProps {
@@ -24,10 +29,10 @@ interface ManageStudentsProps {
 const ManageStudents = ({ courseId, onClose, onStudentsUpdated }: ManageStudentsProps) => {
   const { toast } = useToast();
   const [newStudentEmail, setNewStudentEmail] = useState('');
-  const [activeStudents, setActiveStudents] = useState<Student[]>([]); // Separated active
-  const [blockedStudents, setBlockedStudents] = useState<Student[]>([]); // New state for blocked
+  const [activeStudents, setActiveStudents] = useState<Student[]>([]);
+  const [blockedStudents, setBlockedStudents] = useState<Student[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isSendingInvite, setIsSendingInvite] = useState(false); // To disable invite button
+  const [isAddingStudent, setIsAddingStudent] = useState(false);
 
   const fetchStudents = useCallback(async () => {
     setIsLoading(true);
@@ -43,15 +48,37 @@ const ManageStudents = ({ courseId, onClose, onStudentsUpdated }: ManageStudents
         return;
       }
 
-      const response = await axios.get(`${API_BASE_URL}/api/courses/view-course/${courseId}`, {
+      // ****** IMPORTANT CHANGE HERE: Corrected API endpoint ******
+      const response = await axios.get(`${API_BASE_URL}/api/courses/students/${courseId}`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
       });
 
-      const fetchedStudents: Student[] = response.data.students || [];
-      setActiveStudents(fetchedStudents.filter(s => s.status === 'active'));
-      setBlockedStudents(fetchedStudents.filter(s => s.status === 'blocked'));
+      // Destructure the response to get both students and blockedStudents
+      const { students: fetchedActiveStudents, blockedStudents: fetchedBlockedStudents } = response.data;
+
+      // Map active students to include status: 'active'
+      const mappedActiveStudents: Student[] = fetchedActiveStudents.map((s: any) => ({
+        studentId: s.studentId, // Assuming studentId is the correct field from backend
+        name: s.name,
+        email: s.email,
+        status: 'active',
+      }));
+
+      // Map blocked students to include status: 'blocked'
+      // NOTE: Your backend's blockedUsers only return userId and email.
+      // If you need the name for blocked students, your backend's `blockedUsers`
+      // array should include it, or you'd need to fetch user details separately.
+      const mappedBlockedStudents: Student[] = fetchedBlockedStudents.map((s: BlockedStudentBackend) => ({
+        studentId: s.userId, // Use userId as studentId for blocked students
+        name: s.email, // Fallback to email for name if name isn't provided by backend for blockedUsers
+        email: s.email,
+        status: 'blocked',
+      }));
+
+      setActiveStudents(mappedActiveStudents);
+      setBlockedStudents(mappedBlockedStudents);
 
     } catch (error: any) {
       console.error("Error fetching students:", error);
@@ -79,7 +106,7 @@ const ManageStudents = ({ courseId, onClose, onStudentsUpdated }: ManageStudents
       return;
     }
 
-    setIsSendingInvite(true); // Disable button
+    setIsAddingStudent(true);
     try {
       const token = localStorage.getItem('token');
       const response = await axios.post(`${API_BASE_URL}/api/courses/add-student`, {
@@ -98,7 +125,7 @@ const ManageStudents = ({ courseId, onClose, onStudentsUpdated }: ManageStudents
 
       setNewStudentEmail('');
 
-      await fetchStudents(); // Refetch students to update lists
+      await fetchStudents();
       if (onStudentsUpdated) {
         await onStudentsUpdated();
       }
@@ -107,11 +134,11 @@ const ManageStudents = ({ courseId, onClose, onStudentsUpdated }: ManageStudents
       console.error("Error adding student:", error);
       toast({
         title: "Error",
-        description: error.response?.data?.error || "Failed to add student.",
+        description: error.response?.data?.error || "Failed to add student. Ensure student exists.",
         variant: "destructive",
       });
     } finally {
-      setIsSendingInvite(false); // Re-enable button
+      setIsAddingStudent(false);
     }
   };
 
@@ -224,17 +251,17 @@ const ManageStudents = ({ courseId, onClose, onStudentsUpdated }: ManageStudents
           onClick={onClose}
           className="text-muted-foreground hover:text-foreground"
         >
-          <XCircle className="h-6 w-6" /> {/* Changed to XCircle for consistency */}
+          <XCircle className="h-6 w-6" />
         </button>
       </div>
 
       <form onSubmit={(e) => { e.preventDefault(); handleAddStudent(); }} className="space-y-4 mb-8 border-b border-border/50 pb-6">
-        <h3 className="text-lg font-semibold text-white">Invite Student</h3>
+        <h3 className="text-lg font-semibold text-white">Add Existing Student</h3>
         <div>
-          <label htmlFor="inviteEmail" className="block text-sm font-medium mb-1 text-white">Student Email</label>
+          <label htmlFor="studentEmail" className="block text-sm font-medium mb-1 text-white">Student Email</label>
           <input
             type="email"
-            id="inviteEmail"
+            id="studentEmail"
             className="w-full p-2 border border-border rounded-md bg-background text-foreground"
             placeholder="student@example.com"
             value={newStudentEmail}
@@ -242,8 +269,8 @@ const ManageStudents = ({ courseId, onClose, onStudentsUpdated }: ManageStudents
             required
           />
         </div>
-        <CustomButton type="submit" disabled={isSendingInvite}>
-          {isSendingInvite ? 'Sending Invite...' : 'Send Invite'}
+        <CustomButton type="submit" disabled={isAddingStudent}>
+          {isAddingStudent ? 'Adding Student...' : 'Add Student'}
         </CustomButton>
       </form>
 
@@ -261,7 +288,7 @@ const ManageStudents = ({ courseId, onClose, onStudentsUpdated }: ManageStudents
                   <p className="font-medium text-white">{student.name}</p>
                   <p className="text-sm text-muted-foreground">{student.email}</p>
                 </div>
-                <div className="flex flex-col sm:flex-row gap-2"> {/* Buttons container */}
+                <div className="flex flex-col sm:flex-row gap-2">
                   <CustomButton
                     variant="outline"
                     size="sm"
@@ -300,7 +327,7 @@ const ManageStudents = ({ courseId, onClose, onStudentsUpdated }: ManageStudents
                   <p className="text-sm text-muted-foreground">{student.email}</p>
                 </div>
                 <CustomButton
-                  variant="success" // Assuming 'success' is a good visual for unblock
+                  variant="success"
                   size="sm"
                   onClick={() => handleUnblockStudent(student.studentId, student.name)}
                   icon={<UserCheck className="h-4 w-4" />}
