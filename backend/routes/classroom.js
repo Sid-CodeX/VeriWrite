@@ -158,10 +158,10 @@ router.get("/view-course/:id", authenticate, requireTeacher, async (req, res) =>
     const allTasks = [];
 
     const extractTaskInfo = (task) => {
-      const submittedCount = task.submissions.filter((s) => s.submitted).length;
+      const submittedCount = task.submissions?.filter((s) => s.submitted).length || 0;
       return {
         id: task._id,
-        type: task.type, 
+        type: task.type,
         title: task.title,
         deadline: task.deadline,
         submissions: `${submittedCount}/${classroom.numStudents}`,
@@ -183,12 +183,17 @@ router.get("/view-course/:id", authenticate, requireTeacher, async (req, res) =>
         name: s.name,
         email: s.email,
       })),
-      tasks: allTasks, 
+      blockedStudents: classroom.blockedUsers.map((u) => ({
+        userId: u.userId,
+        email: u.email,
+      })),
+      tasks: allTasks,
     });
   } catch (error) {
     console.error("Error viewing course:", error);
     res.status(500).json({ error: "Server error" });
   }
 });
+
 
 module.exports = router;
