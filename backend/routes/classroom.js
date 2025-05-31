@@ -3,6 +3,8 @@ const jwt = require("jsonwebtoken");
 const { nanoid } = require("nanoid");
 const Classroom = require("../models/Classroom");
 const User = require("../models/User");
+const Assignment = require("../models/Assignment");
+
 
 const router = express.Router();
 
@@ -322,6 +324,37 @@ router.post("/remove-student", authenticate, requireTeacher, async (req, res) =>
     res.status(200).json({ message: "Student removed from classroom" });
   } catch (error) {
     console.error("Error removing student:", error);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// DELETE /delete-classroom/:id
+router.delete("/delete-classroom/:id", authenticate, requireTeacher, async (req, res) => {
+  const classroomId = req.params.id;
+
+  try {
+    const classroom = await Classroom.findById(classroomId);
+
+    if (!classroom) {
+      return res.status(404).json({ error: "Classroom not found" });
+    }
+
+    // Ensure the requesting teacher owns the classroom
+    if (classroom.teacherId.toString() !== req.teacherId) {
+      return res.status(403).json({ error: "Unauthorized: You do not own this classroom" });
+    }
+
+    // Delete all associated assignments and exams
+    const allTaskIds = [...(classroom.assignments || []), ...(classroom.exams || [])];
+
+    await Assignment.deleteMany({ _id: { $in: allTaskIds } });
+
+    // Delete the classroom
+    await Classroom.findByIdAndDelete(classroomId);
+
+    res.status(200).json({ message: "Classroom and associated tasks deleted successfully" });
+  } catch (error) {
+    console.error("Error deleting classroom:", error);
     res.status(500).json({ error: "Server error" });
   }
 });
