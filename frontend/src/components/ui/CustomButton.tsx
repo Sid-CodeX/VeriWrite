@@ -1,9 +1,8 @@
-
 import React from 'react';
 import { cn } from '@/lib/utils';
 
 interface CustomButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'primary' | 'secondary' | 'outline' | 'ghost' | 'link';
+  variant?: 'primary' | 'secondary' | 'outline' | 'ghost' | 'link' | 'destructive' | 'success' | 'default';
   size?: 'sm' | 'md' | 'lg';
   children: React.ReactNode;
   fullWidth?: boolean;
@@ -13,23 +12,27 @@ interface CustomButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement
 }
 
 const CustomButton = React.forwardRef<HTMLButtonElement, CustomButtonProps>(
-  ({ 
-    className, 
-    variant = 'primary', 
-    size = 'md', 
-    children, 
+  ({
+    className,
+    variant = 'default', // Still uses 'default' if not specified
+    size = 'md',
+    children,
     fullWidth = false,
     loading = false,
     icon,
     iconPosition = 'left',
-    ...props 
+    ...props
   }, ref) => {
     const variants = {
+      // CHANGE THIS LINE: Set default to your desired "old red"
+      default: 'bg-red-600 text-white hover:bg-red-700 focus:ring-2 focus:ring-red-300', // Changed to red
       primary: 'bg-veri text-veri-foreground hover:bg-veri/90 focus:ring-2 focus:ring-veri/20',
       secondary: 'bg-secondary text-secondary-foreground hover:bg-secondary/80 focus:ring-2 focus:ring-secondary/20',
       outline: 'border border-veri text-foreground hover:bg-veri/10 focus:ring-2 focus:ring-veri/20',
       ghost: 'hover:bg-muted focus:ring-2 focus:ring-muted',
-      link: 'text-veri underline-offset-4 hover:underline'
+      link: 'text-veri underline-offset-4 hover:underline',
+      destructive: 'bg-red-600 text-white hover:bg-red-700 focus:ring-2 focus:ring-red-300', // Destructive is already red
+      success: 'bg-green-600 text-white hover:bg-green-700 focus:ring-2 focus:ring-green-300',
     };
 
     const sizes = {
