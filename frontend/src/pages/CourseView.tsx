@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   PlusCircle, FileText, Calendar, Users, ArrowLeft,
-  DownloadCloud, Trash2, UserPlus
+  DownloadCloud, Trash2, UserPlus, XCircle // Added XCircle for modal close
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import axios from 'axios';
@@ -50,11 +50,15 @@ const CourseView = () => {
   const [assignmentType, setAssignmentType] = useState<'assignment' | 'exam'>('assignment');
   const [assignmentDeadline, setAssignmentDeadline] = useState('');
   const [description, setDescription] = useState('');
-  const [assignmentFile, setAssignmentFile] = useState<File | null>(null); // Moved next to description
+  const [assignmentFile, setAssignmentFile] = useState<File | null>(null);
   const [showManageStudents, setShowManageStudents] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isCreatingAssignment, setIsCreatingAssignment] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // NEW STATE FOR DELETE CONFIRMATION MODAL
+  const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
+  const [isDeletingCourse, setIsDeletingCourse] = useState(false); // To disable delete button during deletion
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -161,14 +165,28 @@ const CourseView = () => {
     }
   };
 
-  const handleDeleteCourse = async () => {
-    if (!window.confirm('Are you sure you want to delete this course? This action cannot be undone, and all associated assignments/exams will be removed.')) {
-      return;
-    }
+  // MODIFIED: handleDeleteCourse now opens the confirmation modal
+  const handleDeleteCourse = () => {
+    setShowDeleteConfirmation(true);
+  };
 
+  // NEW: Function to execute actual course deletion after confirmation
+  const confirmDeleteCourse = async () => {
+    setIsDeletingCourse(true); // Disable button during deletion
     try {
       const token = localStorage.getItem('token');
-      await axios.delete(`${API_BASE_URL}/api/courses/${course?.id}`, {
+      if (!token) {
+        toast({
+          title: "Authentication Error",
+          description: "No token found. Please log in.",
+          variant: "destructive",
+        });
+        navigate('/login');
+        return;
+      }
+
+      // Call your backend's DELETE classroom route
+      await axios.delete(`${API_BASE_URL}/api/courses/delete-classroom/${course?.id}`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -178,7 +196,7 @@ const CourseView = () => {
         title: "Course deleted",
         description: `${course?.name} has been deleted successfully.`,
       });
-      navigate('/classroom');
+      navigate('/classroom'); // Redirect to classroom list after successful deletion
 
     } catch (error: any) {
       console.error("Error deleting course:", error);
@@ -187,6 +205,9 @@ const CourseView = () => {
         description: error.response?.data?.error || "Failed to delete course.",
         variant: "destructive",
       });
+    } finally {
+      setIsDeletingCourse(false); // Re-enable button
+      setShowDeleteConfirmation(false); // Close the modal
     }
   };
 
@@ -355,7 +376,6 @@ const CourseView = () => {
         });
       }
 
-      // Clear form fields and hide form (ONLY ONCE)
       setAssignmentTitle('');
       setAssignmentDeadline('');
       setAssignmentFile(null);
@@ -376,6 +396,7 @@ const CourseView = () => {
       setIsCreatingAssignment(false);
     }
   };
+
 
   if (isLoading) {
     return (
@@ -453,7 +474,7 @@ const CourseView = () => {
               </CustomButton>
               <CustomButton
                 variant="outline"
-                onClick={handleDeleteCourse}
+                onClick={handleDeleteCourse} // This now opens the modal
                 icon={<Trash2 className="h-4 w-4" />}
               >
                 Delete Course
@@ -525,7 +546,7 @@ const CourseView = () => {
                     }}
                     className="text-muted-foreground hover:text-foreground"
                   >
-                    ✕
+                    <XCircle className="h-6 w-6" /> {/* Consistent XCircle icon */}
                   </button>
                 </div>
 
@@ -666,13 +687,50 @@ const CourseView = () => {
             </div>
           )}
 
+          {/* NEW: Delete Confirmation Modal */}
+          {showDeleteConfirmation && (
+            <div className="fixed inset-0 bg-black bg-opacity-70 flex justify-center items-center z-50 p-4">
+              <GlassmorphismCard className="p-6 w-full max-w-md">
+                <div className="flex justify-between items-center mb-4">
+                  <h2 className="text-xl font-bold text-white">Confirm Deletion</h2>
+                  <button
+                    onClick={() => setShowDeleteConfirmation(false)}
+                    className="text-muted-foreground hover:text-foreground"
+                  >
+                    <XCircle className="h-6 w-6" />
+                  </button>
+                </div>
+                <p className="text-white mb-6">
+                  Are you absolutely sure you want to delete the course "<span className="font-semibold">{course?.name}</span>"?
+                  This action cannot be undone, and all associated assignments and exams will be permanently removed.
+                </p>
+                <div className="flex justify-end gap-3">
+                  <CustomButton
+                    variant="outline"
+                    onClick={() => setShowDeleteConfirmation(false)}
+                    disabled={isDeletingCourse}
+                  >
+                    Cancel
+                  </CustomButton>
+                  <CustomButton
+                    variant="destructive" // Use destructive variant for delete button
+                    onClick={confirmDeleteCourse}
+                    disabled={isDeletingCourse}
+                  >
+                    {isDeletingCourse ? 'Deleting...' : 'Delete Course'}
+                  </CustomButton>
+                </div>
+              </GlassmorphismCard>
+            </div>
+          )}
+
           <h2 className="text-xl font-bold mb-4 text-white">Assignments & Exams</h2>
           <div className="space-y-4">
             {assignments.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {assignments.map((assignment) => (
-                  <GlassmorphismCard key={assignment.id} className="p-6 hover:shadow-md transition-all flex flex-col justify-between"> {/* Added flex-col & justify-between */}
-                    <div className="flex flex-col flex-grow"> {/* Ensured content grows */}
+                  <GlassmorphismCard key={assignment.id} className="p-6 hover:shadow-md transition-all flex flex-col justify-between">
+                    <div className="flex flex-col flex-grow">
                       <div className="flex items-center gap-2 mb-1">
                         <span className={`px-2 py-0.5 text-xs rounded-full ${
                           assignment.type === 'exam'
@@ -687,7 +745,7 @@ const CourseView = () => {
                         <p className="text-sm text-muted-foreground mb-2">{assignment.description}</p>
                       )}
 
-                      <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-muted-foreground mt-auto"> {/* mt-auto pushes details up */}
+                      <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-muted-foreground mt-auto">
                         <div className="flex items-center gap-1">
                           <Calendar className="h-4 w-4" />
                           <span>Due: {format(assignment.deadline, 'MMM d, h:mm a')}</span>
@@ -707,12 +765,11 @@ const CourseView = () => {
                       </div>
                     </div>
 
-                    {/* Button Section: Changed to flex-col for small screens, gap for spacing */}
-                    <div className="flex flex-col sm:flex-row gap-2 mt-4 pt-4 border-t border-border/50"> {/* Added mt-4 pt-4 border-t for separation */}
+                    <div className="flex flex-col sm:flex-row gap-2 mt-4 pt-4 border-t border-border/50">
                       <CustomButton
                         onClick={() => navigate(`/classroom/${courseId}/assignment/${assignment.id}`)}
                         size="sm"
-                        className="w-full sm:w-auto" // Full width on small, auto on larger
+                        className="w-full sm:w-auto"
                       >
                         View {assignment.type === 'exam' ? 'Exam' : 'Assignment'}
                       </CustomButton>
@@ -721,7 +778,6 @@ const CourseView = () => {
                         size="sm"
                         onClick={() => handleDeleteAssignment(assignment.id, assignment.type, assignment.title)}
                         icon={<Trash2 className="h-4 w-4" />}
-                        className="w-full sm:w-auto" // Full width on small, auto on larger
                       >
                         Delete
                       </CustomButton>
