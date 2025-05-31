@@ -195,5 +195,38 @@ router.get("/view-course/:id", authenticate, requireTeacher, async (req, res) =>
   }
 });
 
+// GET /students/:classroomId - Get enrolled and blocked students of a classroom
+router.get("/students/:classroomId", authenticate, requireTeacher, async (req, res) => {
+  const { classroomId } = req.params;
+
+  try {
+    const classroom = await Classroom.findById(classroomId).lean();
+
+    if (!classroom) {
+      return res.status(404).json({ error: "Classroom not found" });
+    }
+
+    const students = classroom.students.map((s) => ({
+      studentId: s.studentId,
+      name: s.name,
+      email: s.email,
+    }));
+
+    const blockedStudents = classroom.blockedUsers.map((b) => ({
+      userId: b.userId,
+      email: b.email,
+    }));
+
+    res.status(200).json({
+      students,
+      blockedStudents,
+    });
+  } catch (error) {
+    console.error("Error fetching students:", error);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+
 
 module.exports = router;
