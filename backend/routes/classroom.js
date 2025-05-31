@@ -227,6 +227,104 @@ router.get("/students/:classroomId", authenticate, requireTeacher, async (req, r
   }
 });
 
+// BLOCK student
+router.post("/block-student", authenticate, requireTeacher, async (req, res) => {
+  const { classroomId, studentId } = req.body;
+
+  try {
+    const classroom = await Classroom.findById(classroomId);
+    if (!classroom) return res.status(404).json({ error: "Classroom not found" });
+
+    const studentIndex = classroom.students.findIndex(
+      (s) => s.studentId.toString() === studentId
+    );
+
+    if (studentIndex === -1) return res.status(404).json({ error: "Student not found in classroom" });
+
+    const student = classroom.students[studentIndex];
+
+    // Move to blockedUsers
+    classroom.blockedUsers.push({
+      userId: student.studentId,
+      email: student.email,
+    });
+
+    // Remove from students[]
+    classroom.students.splice(studentIndex, 1);
+    classroom.numStudents -= 1;
+
+    await classroom.save();
+
+    res.status(200).json({ message: "Student blocked successfully" });
+  } catch (error) {
+    console.error("Error blocking student:", error);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// UNBLOCK student
+router.post("/unblock-student", authenticate, requireTeacher, async (req, res) => {
+  const { classroomId, studentId } = req.body;
+
+  try {
+    const classroom = await Classroom.findById(classroomId);
+    if (!classroom) return res.status(404).json({ error: "Classroom not found" });
+
+    const blockedIndex = classroom.blockedUsers.findIndex(
+      (u) => u.userId.toString() === studentId
+    );
+
+    if (blockedIndex === -1) return res.status(404).json({ error: "Student not found in blocked list" });
+
+    const user = await User.findById(studentId);
+    if (!user) return res.status(404).json({ error: "User not found" });
+
+    // Add back to students[]
+    classroom.students.push({
+      studentId: user._id,
+      name: user.name,
+      email: user.email,
+    });
+
+    // Remove from blockedUsers
+    classroom.blockedUsers.splice(blockedIndex, 1);
+    classroom.numStudents += 1;
+
+    await classroom.save();
+
+    res.status(200).json({ message: "Student unblocked successfully" });
+  } catch (error) {
+    console.error("Error unblocking student:", error);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// REMOVE student
+router.post("/remove-student", authenticate, requireTeacher, async (req, res) => {
+  const { classroomId, studentId } = req.body;
+
+  try {
+    const classroom = await Classroom.findById(classroomId);
+    if (!classroom) return res.status(404).json({ error: "Classroom not found" });
+
+    const initialLength = classroom.students.length;
+    classroom.students = classroom.students.filter(
+      (s) => s.studentId.toString() !== studentId
+    );
+
+    if (classroom.students.length === initialLength) {
+      return res.status(404).json({ error: "Student not found in classroom" });
+    }
+
+    classroom.numStudents -= 1;
+    await classroom.save();
+
+    res.status(200).json({ message: "Student removed from classroom" });
+  } catch (error) {
+    console.error("Error removing student:", error);
+    res.status(500).json({ error: "Server error" });
+  }
+});
 
 
 module.exports = router;
