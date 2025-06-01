@@ -56,9 +56,14 @@ const CourseView = () => {
   const [isCreatingAssignment, setIsCreatingAssignment] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // NEW STATE FOR DELETE CONFIRMATION MODAL
+  // State for Course Delete Confirmation Modal
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
-  const [isDeletingCourse, setIsDeletingCourse] = useState(false); // To disable delete button during deletion
+  const [isDeletingCourse, setIsDeletingCourse] = useState(false);
+
+  // NEW STATES FOR ASSIGNMENT DELETE CONFIRMATION MODAL
+  const [showDeleteAssignmentConfirmation, setShowDeleteAssignmentConfirmation] = useState(false);
+  const [assignmentToDelete, setAssignmentToDelete] = useState<{ id: string; type: 'assignment' | 'exam'; title: string } | null>(null);
+  const [isDeletingAssignment, setIsDeletingAssignment] = useState(false); // To disable delete button during deletion
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -135,44 +140,54 @@ const CourseView = () => {
     fetchCourseData();
   }, [fetchCourseData]);
 
-  const handleDeleteAssignment = async (assignmentId: string, type: 'assignment' | 'exam', title: string) => {
-    if (!window.confirm(`Are you sure you want to delete the ${type} "${title}"? This action cannot be undone.`)) {
-      return;
-    }
+  // MODIFIED: handleDeleteAssignment now opens the confirmation modal
+  const handleDeleteAssignment = (assignmentId: string, type: 'assignment' | 'exam', title: string) => {
+    setAssignmentToDelete({ id: assignmentId, type, title });
+    setShowDeleteAssignmentConfirmation(true);
+  };
 
+  // NEW: Function to execute actual assignment deletion after confirmation
+  const confirmDeleteAssignment = async () => {
+    if (!assignmentToDelete) return;
+
+    setIsDeletingAssignment(true);
     try {
       const token = localStorage.getItem('token');
-      await axios.delete(`${API_BASE_URL}/api/assignment/${type}/${assignmentId}`, {
+      // Backend expects assignmentId in the URL for /delete/:assignmentId (DELETE)
+      await axios.delete(`${API_BASE_URL}/api/assignment/delete/${assignmentToDelete.id}`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
       });
 
       toast({
-        title: `${type === 'assignment' ? 'Assignment' : 'Exam'} deleted`,
-        description: `"${title}" has been deleted.`,
+        title: `${assignmentToDelete.type === 'assignment' ? 'Assignment' : 'Exam'} deleted`,
+        description: `"${assignmentToDelete.title}" has been deleted.`,
       });
 
-      await fetchCourseData();
+      await fetchCourseData(); // Re-fetch to update the lists and counts
 
     } catch (error: any) {
-      console.error(`Error deleting ${type}:`, error);
+      console.error(`Error deleting ${assignmentToDelete.type}:`, error);
       toast({
         title: "Error",
-        description: error.response?.data?.error || `Failed to delete ${type}.`,
+        description: error.response?.data?.error || `Failed to delete ${assignmentToDelete.type}.`,
         variant: "destructive",
       });
+    } finally {
+      setIsDeletingAssignment(false);
+      setShowDeleteAssignmentConfirmation(false); // Close the modal
+      setAssignmentToDelete(null); // Clear assignment details
     }
   };
 
-  // MODIFIED: handleDeleteCourse now opens the confirmation modal
+  // Course Delete Confirmation (unchanged from last iteration)
   const handleDeleteCourse = () => {
     setShowDeleteConfirmation(true);
   };
 
-  // NEW: Function to execute actual course deletion after confirmation
   const confirmDeleteCourse = async () => {
-    setIsDeletingCourse(true); // Disable button during deletion
+    setIsDeletingCourse(true);
     try {
       const token = localStorage.getItem('token');
       if (!token) {
@@ -185,7 +200,6 @@ const CourseView = () => {
         return;
       }
 
-      // Call your backend's DELETE classroom route
       await axios.delete(`${API_BASE_URL}/api/courses/delete-classroom/${course?.id}`, {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -196,7 +210,7 @@ const CourseView = () => {
         title: "Course deleted",
         description: `${course?.name} has been deleted successfully.`,
       });
-      navigate('/classroom'); // Redirect to classroom list after successful deletion
+      navigate('/classroom');
 
     } catch (error: any) {
       console.error("Error deleting course:", error);
@@ -206,8 +220,8 @@ const CourseView = () => {
         variant: "destructive",
       });
     } finally {
-      setIsDeletingCourse(false); // Re-enable button
-      setShowDeleteConfirmation(false); // Close the modal
+      setIsDeletingCourse(false);
+      setShowDeleteConfirmation(false);
     }
   };
 
@@ -474,7 +488,7 @@ const CourseView = () => {
               </CustomButton>
               <CustomButton
                 variant="outline"
-                onClick={handleDeleteCourse} // This now opens the modal
+                onClick={handleDeleteCourse}
                 icon={<Trash2 className="h-4 w-4" />}
               >
                 Delete Course
@@ -546,7 +560,7 @@ const CourseView = () => {
                     }}
                     className="text-muted-foreground hover:text-foreground"
                   >
-                    <XCircle className="h-6 w-6" /> {/* Consistent XCircle icon */}
+                    <XCircle className="h-6 w-6" />
                   </button>
                 </div>
 
@@ -687,12 +701,12 @@ const CourseView = () => {
             </div>
           )}
 
-          {/* NEW: Delete Confirmation Modal */}
+          {/* Course Delete Confirmation Modal */}
           {showDeleteConfirmation && (
             <div className="fixed inset-0 bg-black bg-opacity-70 flex justify-center items-center z-50 p-4">
               <GlassmorphismCard className="p-6 w-full max-w-md">
                 <div className="flex justify-between items-center mb-4">
-                  <h2 className="text-xl font-bold text-white">Confirm Deletion</h2>
+                  <h2 className="text-xl font-bold text-white">Confirm Course Deletion</h2>
                   <button
                     onClick={() => setShowDeleteConfirmation(false)}
                     className="text-muted-foreground hover:text-foreground"
@@ -713,11 +727,54 @@ const CourseView = () => {
                     Cancel
                   </CustomButton>
                   <CustomButton
-                    variant="destructive" // Use destructive variant for delete button
+                    variant="destructive"
                     onClick={confirmDeleteCourse}
                     disabled={isDeletingCourse}
                   >
                     {isDeletingCourse ? 'Deleting...' : 'Delete Course'}
+                  </CustomButton>
+                </div>
+              </GlassmorphismCard>
+            </div>
+          )}
+
+          {/* NEW: Assignment Delete Confirmation Modal */}
+          {showDeleteAssignmentConfirmation && assignmentToDelete && (
+            <div className="fixed inset-0 bg-black bg-opacity-70 flex justify-center items-center z-50 p-4">
+              <GlassmorphismCard className="p-6 w-full max-w-md">
+                <div className="flex justify-between items-center mb-4">
+                  <h2 className="text-xl font-bold text-white">Confirm Deletion</h2>
+                  <button
+                    onClick={() => {
+                        setShowDeleteAssignmentConfirmation(false);
+                        setAssignmentToDelete(null); // Clear data when closing
+                    }}
+                    className="text-muted-foreground hover:text-foreground"
+                  >
+                    <XCircle className="h-6 w-6" />
+                  </button>
+                </div>
+                <p className="text-white mb-6">
+                  Are you sure you want to delete the {assignmentToDelete.type} "<span className="font-semibold">{assignmentToDelete.title}</span>"?
+                  This action cannot be undone.
+                </p>
+                <div className="flex justify-end gap-3">
+                  <CustomButton
+                    variant="outline"
+                    onClick={() => {
+                        setShowDeleteAssignmentConfirmation(false);
+                        setAssignmentToDelete(null); // Clear data when canceling
+                    }}
+                    disabled={isDeletingAssignment}
+                  >
+                    Cancel
+                  </CustomButton>
+                  <CustomButton
+                    variant="destructive"
+                    onClick={confirmDeleteAssignment}
+                    disabled={isDeletingAssignment}
+                  >
+                    {isDeletingAssignment ? 'Deleting...' : `Delete ${assignmentToDelete.type}`}
                   </CustomButton>
                 </div>
               </GlassmorphismCard>
