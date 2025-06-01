@@ -116,6 +116,17 @@ router.post("/create-assignment", authenticate,  requireTeacher,  multerErrorHan
       const classroom = await Classroom.findById(classroomId);
       if (!classroom) return res.status(404).json({ error: "Classroom not found" });
 
+      // Check for duplicate assignment title within the same classroom and type 
+      const existingAssignment = await Assignment.findOne({
+        classroomId: classroomId,
+        title: { $regex: new RegExp(`^${title.trim()}$`, 'i') }, // Case-insensitive exact match
+        type: type, 
+      });
+
+      if (existingAssignment) {
+        return res.status(409).json({ error: `An ${type.toLowerCase()} with the title "${title}" already exists in this classroom.` });
+      }
+
       const submissions = classroom.students.map((student) => ({
         studentId: student.studentId,
         name: student.name,
@@ -161,9 +172,21 @@ router.post("/create-assignment", authenticate,  requireTeacher,  multerErrorHan
       res.status(201).json({
         message: "Assignment created successfully",
         assignmentId: newAssignment._id,
+        task: { // Return enough data for frontend to update without refetching all
+          id: newAssignment._id,
+          title: newAssignment.title,
+          deadline: newAssignment.deadline,
+          type: newAssignment.type,
+          description: newAssignment.description,
+          submissions: `0/${classroom.numStudents}`, // Initial submissions
+          hasFile: !!newAssignment.questionFile, // Indicate if file was uploaded
+        }
       });
     } catch (error) {
       console.error("Error creating assignment:", error);
+      if (error.code === 11000) {
+        return res.status(409).json({ error: "An assignment/exam with this title and type already exists in this classroom." });
+      }
       res.status(500).json({ error: "Server error" });
     }
   }
@@ -358,5 +381,48 @@ router.get("/view-report/:assignmentId/:studentId", authenticate, requireTeacher
     res.status(500).json({ error: "Server error" });
   }
 });
+
+// DELETE /delete/:assignmentId
+router.delete("/delete/:assignmentId", authenticate, requireTeacher, async (req, res) => {
+  const { assignmentId } = req.params;
+
+  try {
+    const assignment = await Assignment.findById(assignmentId);
+    if (!assignment) {
+      return res.status(404).json({ error: "Assignment not found" });
+    }
+
+    const classroomId = assignment.classroomId;
+    const type = assignment.type;
+
+    await Assignment.findByIdAndDelete(assignmentId);
+
+    // Update the classroom
+    const classroom = await Classroom.findById(classroomId);
+    if (!classroom) {
+      return res.status(404).json({ error: "Classroom not found" });
+    }
+
+    if (type === "Assignment") {
+      classroom.assignments = classroom.assignments.filter(
+        (id) => id.toString() !== assignmentId
+      );
+      classroom.numAssignments = Math.max(0, classroom.numAssignments - 1);
+    } else if (type === "Exam") {
+      classroom.exams = classroom.exams.filter(
+        (id) => id.toString() !== assignmentId
+      );
+      classroom.numExams = Math.max(0, classroom.numExams - 1);
+    }
+
+    await classroom.save();
+
+    res.status(200).json({ message: `${type} deleted successfully.` });
+  } catch (error) {
+    console.error("Error deleting assignment:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 
 module.exports = router;
