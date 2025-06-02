@@ -218,9 +218,8 @@ router.get("/view/:assignmentId", authenticate, requireTeacher, async (req, res)
 
       if (submission) {
         submitted++;
-        if (submission.plagiarismPercent !== null && submission.plagiarismPercent !== undefined) {
-          checked++;
-        }
+        const isChecked = submission.plagiarismPercent !== null && submission.plagiarismPercent !== undefined;
+        if (isChecked) checked++;
 
         return {
           name: student.name,
@@ -230,7 +229,9 @@ router.get("/view/:assignmentId", authenticate, requireTeacher, async (req, res)
           fileName: submission.fileName || "Uploaded",
           plagiarismPercent: submission.plagiarismPercent ?? "Not checked",
           extractedText: submission.extractedText,
-          isChecked: submission.plagiarismPercent !== null && submission.plagiarismPercent !== undefined,
+          isChecked,
+          topMatches: submission.topMatches ?? [],
+          allMatches: submission.allMatches ?? []
         };
       } else {
         return {
@@ -242,6 +243,8 @@ router.get("/view/:assignmentId", authenticate, requireTeacher, async (req, res)
           plagiarismPercent: "—",
           extractedText: null,
           isChecked: false,
+          topMatches: [],
+          allMatches: []
         };
       }
     });
@@ -262,6 +265,7 @@ router.get("/view/:assignmentId", authenticate, requireTeacher, async (req, res)
     res.status(500).json({ message: "Server error" });
   }
 });
+
 
 // POST /check-plagiarism/:assignmentId
 router.post("/check-plagiarism/:assignmentId", authenticate, requireTeacher, async (req, res) => {
