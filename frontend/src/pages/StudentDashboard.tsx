@@ -6,7 +6,7 @@ import axios from 'axios';
 
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
-import CustomButton from '@/components/ui/CustomButton';
+import CustomButton from '@/components/ui/CustomButton'; // Your CustomButton
 import GlassmorphismCard from '@/components/ui/GlassmorphismCard';
 import { useAuth } from '@/context/AuthContext';
 
@@ -36,6 +36,7 @@ const StudentDashboard = () => {
   const [error, setError] = useState<string | null>(null);
   const [showJoinClassForm, setShowJoinClassForm] = useState(false);
   const [classCode, setClassCode] = useState('');
+  const [joiningClass, setJoiningClass] = useState(false); // New state for join button loading
 
   // Define a set of appealing colors for the cards
   const cardColors = [
@@ -52,7 +53,7 @@ const StudentDashboard = () => {
 
   // Function to fetch dashboard data (which contains classroom info)
   const fetchDashboardData = useCallback(async () => {
-    if (!user) { // Ensure user is available for role check
+    if (!user) {
       setLoading(false);
       setError("User not authenticated or user role not found.");
       return;
@@ -63,9 +64,8 @@ const StudentDashboard = () => {
 
     let endpoint = '';
 
-    // Determine the correct endpoint based on user role
     if (user.role === 'student') {
-      endpoint = `${API_BASE_URL}/api/studentcourses/dashboard`; // Use your actual student dashboard endpoint
+      endpoint = `${API_BASE_URL}/api/studentcourses/dashboard`;
     } else {
       console.warn("Non-student user attempting to access student dashboard.");
       setError("Access denied. Please log in as a student.");
@@ -76,22 +76,19 @@ const StudentDashboard = () => {
     try {
       const response = await axios.get(endpoint, {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`, // Get token from localStorage
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
         },
       });
 
-      // Assign colors dynamically to classrooms
       const classroomsWithColors = response.data.courses.map((classroom: any, index: number) => ({
         ...classroom,
-        // Ensure that nextDue.dueDate is a Date object for frontend formatting
         nextDue: classroom.nextDue ? { ...classroom.nextDue, dueDate: new Date(classroom.nextDue.dueDate) } : null,
-        color: cardColors[index % cardColors.length], // Cycle through predefined colors
+        color: cardColors[index % cardColors.length],
       }));
 
       setClassrooms(classroomsWithColors);
     } catch (err) {
       console.error("Error fetching dashboard data:", err);
-      // More specific error message if it's an Axios error
       if (axios.isAxiosError(err) && err.response) {
         setError(`Failed to load classroom data: ${err.response.data.error || err.response.statusText}`);
       } else {
@@ -105,17 +102,16 @@ const StudentDashboard = () => {
     } finally {
       setLoading(false);
     }
-  }, [user, toast, API_BASE_URL]); // Add user and API_BASE_URL to dependencies
+  }, [user, toast, API_BASE_URL]);
 
-  // Fetch data on component mount
   useEffect(() => {
-    window.scrollTo(0, 0); // Scroll to top on page load
-    if (user) { // Only fetch if user data is available
+    window.scrollTo(0, 0);
+    if (user) {
       fetchDashboardData();
     }
-  }, [user, fetchDashboardData]); // Depend on user and fetchDashboardData
+  }, [user, fetchDashboardData]);
 
-  const handleJoinClass = async () => { // Made async for potential API call
+  const handleJoinClass = async () => {
     if (!classCode.trim()) {
       toast({
         title: "Class code required",
@@ -125,15 +121,14 @@ const StudentDashboard = () => {
       return;
     }
 
+    setJoiningClass(true); // Set loading state for the button
     toast({
       title: "Joining class",
       description: "Processing your request...",
     });
 
     try {
-      // This is where you'd make the actual API call to join a class
-      // You'll need a backend endpoint for this, e.g., POST /api/studentcourses/join
-      await axios.post(`${API_BASE_URL}/api/studentcourses/join`, // Example join endpoint
+      const response = await axios.post(`${API_BASE_URL}/api/studentcourses/join`,
         { classCode },
         {
           headers: {
@@ -143,12 +138,11 @@ const StudentDashboard = () => {
       );
 
       toast({
-        title: "Class joined",
-        description: `You have successfully joined a new class!`,
+        title: "Success",
+        description: response.data.message || "You have successfully joined a new class!",
       });
 
-      // After successfully joining, re-fetch data to update the classroom list
-      fetchDashboardData();
+      fetchDashboardData(); // Re-fetch data to update the classroom list
       setClassCode('');
       setShowJoinClassForm(false);
 
@@ -163,20 +157,22 @@ const StudentDashboard = () => {
       } else {
         toast({
           title: "Failed to join class",
-          description: "An unexpected error occurred.",
+          description: "An unexpected error occurred. Please try again.",
           variant: "destructive",
         });
       }
+    } finally {
+      setJoiningClass(false); // Reset loading state
     }
   };
 
   const formatDate = (dateString: string | Date) => {
-    const date = new Date(dateString); // Ensure it's a Date object
+    const date = new Date(dateString);
     const now = new Date();
     const diffTime = date.getTime() - now.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 3600 * 24));
 
-    if (isNaN(date.getTime())) { // Handle invalid dates
+    if (isNaN(date.getTime())) {
       return 'N/A';
     }
 
@@ -184,10 +180,9 @@ const StudentDashboard = () => {
     if (diffDays === 0) return 'Due today';
     if (diffDays === 1) return 'Due tomorrow';
     if (diffDays < 7) return `Due in ${diffDays} days`;
-    return date.toLocaleDateString(); // Fallback for dates far in future
+    return date.toLocaleDateString();
   };
 
-  // Calculate total assignments and completed assignments from fetched data
   const totalAssignmentsOverall = classrooms.reduce((total, classroom) => total + classroom.totalAssignments, 0);
   const completedAssignmentsOverall = classrooms.reduce((total, classroom) => total + classroom.submittedAssignments, 0);
 
@@ -238,17 +233,23 @@ const StudentDashboard = () => {
                     placeholder="e.g., ABC123"
                     value={classCode}
                     onChange={(e) => setClassCode(e.target.value)}
+                    disabled={joiningClass}
                   />
                 </div>
                 <div className="flex gap-3 justify-end">
                   <CustomButton
                     variant="outline"
                     onClick={() => setShowJoinClassForm(false)}
+                    disabled={joiningClass}
                   >
                     Cancel
                   </CustomButton>
-                  <CustomButton onClick={handleJoinClass}>
-                    Join Class
+                  <CustomButton
+                    onClick={handleJoinClass}
+                    disabled={joiningClass}
+                    loading={joiningClass} // Corrected prop name
+                  >
+                    {joiningClass ? 'Joining...' : 'Join Class'}
                   </CustomButton>
                 </div>
               </div>
@@ -328,7 +329,6 @@ const StudentDashboard = () => {
                         <p className="text-sm text-muted-foreground">Instructor: {classroom.instructor}</p>
                       </div>
 
-                      {/* THIS WAS THE DIV WITH THE MISSING CLOSING TAG */}
                       <div className="p-6 flex-grow flex flex-col">
                         <div className="mb-4">
                           <div className="flex justify-between mb-2">
@@ -387,7 +387,7 @@ const StudentDashboard = () => {
                             View Classroom
                           </CustomButton>
                         </div>
-                      </div> {/* <--- **THIS IS THE CORRECTED CLOSING TAG** */}
+                      </div>
                     </GlassmorphismCard>
                   </div>
                 ))}
@@ -405,7 +405,10 @@ const StudentDashboard = () => {
                     <p className="text-sm text-muted-foreground mb-6">
                       Enter an invitation code from your instructor to join a new class
                     </p>
-                    <CustomButton variant="outline" onClick={() => setShowJoinClassForm(true)}>
+                    <CustomButton
+                      variant="outline"
+                      onClick={() => setShowJoinClassForm(true)}
+                    >
                       Join Class
                     </CustomButton>
                   </GlassmorphismCard>
