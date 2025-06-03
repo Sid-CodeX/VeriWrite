@@ -2,17 +2,18 @@ const express = require("express");
 const jwt = require("jsonwebtoken");
 const Classroom = require("../models/Classroom");
 const Assignment = require("../models/Assignment");
+const User = require("../models/User");
 
 const router = express.Router();
 
-// ✅ Authentication Middleware
+// Authentication Middleware
 const authenticate = (req, res, next) => {
   try {
     const token = req.headers.authorization?.split(" ")[1];
     if (!token) return res.status(401).json({ error: "Unauthorized" });
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.studentId = decoded.userId;
+    req.userId = decoded.userId; // changed
     req.role = decoded.role;
 
     next();
@@ -21,7 +22,8 @@ const authenticate = (req, res, next) => {
   }
 };
 
-// ✅ Only Student Access Middleware
+
+// Only Student Access Middleware
 const requireStudent = (req, res, next) => {
   if (req.role !== "student") {
     return res.status(403).json({ error: "Access denied: Students only" });
@@ -32,7 +34,8 @@ const requireStudent = (req, res, next) => {
 // ✅ GET /student/dashboard
 router.get("/dashboard", authenticate, requireStudent, async (req, res) => {
   try {
-    const studentId = req.studentId;
+    const studentId = req.userId; 
+
 
     // Get classrooms student is part of
     const classrooms = await Classroom.find({
@@ -110,5 +113,63 @@ router.get("/dashboard", authenticate, requireStudent, async (req, res) => {
     res.status(500).json({ error: "Server error" });
   }
 });
+
+// POST /studentcourses/join
+router.post("/join", authenticate, requireStudent, async (req, res) => {
+  try {
+    const studentId = req.userId;
+    const { classCode } = req.body;
+
+    if (!classCode) {
+      return res.status(400).json({ error: "Class code is required" });
+    }
+
+    const classroom = await Classroom.findOne({ inviteLink: classCode }).populate("assignments");
+
+    if (!classroom) {
+      return res.status(404).json({ error: "Classroom not found" });
+    }
+
+    if (classroom.blockedUsers.some(u => u.userId.equals(studentId))) {
+      return res.status(403).json({ error: "You are blocked from this class." });
+    }
+
+    if (classroom.students.some(s => s.studentId.equals(studentId))) {
+      return res.status(409).json({ message: "Already enrolled in this class." });
+    }
+
+    const student = await User.findById(studentId);
+    if (!student) {
+      return res.status(404).json({ error: "Student not found" });
+    }
+
+    // Add student to classroom
+    classroom.students.push({
+      studentId,
+      name: student.name,
+      email: student.email
+    });
+    classroom.numStudents += 1;
+
+    // Add empty submission for each assignment
+    for (const assignment of classroom.assignments) {
+      assignment.submissions.push({
+        studentId,
+        name: student.name,
+        email: student.email,
+        submitted: false
+      });
+      await assignment.save();
+    }
+
+    await classroom.save();
+
+    res.status(200).json({ message: "Successfully joined the class!" });
+  } catch (error) {
+    console.error("Error joining class:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 
 module.exports = router;
