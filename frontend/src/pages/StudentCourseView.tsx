@@ -1,110 +1,100 @@
-
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, FileText, Calendar, Clock, Filter, Check, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-
+import axios from 'axios';
+import { useAuth } from '@/context/AuthContext';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import CustomButton from '@/components/ui/CustomButton';
 import GlassmorphismCard from '@/components/ui/GlassmorphismCard';
 import { format } from 'date-fns';
 
+// Interface to match the backend response for a single assignment/exam item
 interface Assignment {
-  id: string;
+  id: string; // _id from MongoDB
   title: string;
-  deadline: Date;
+  deadline: string | null; // Allow null for safety
   submitted: boolean;
-  submittedAt?: Date;
+  submittedAt?: string | null; // Allow null for safety
   description?: string;
   type: 'assignment' | 'exam';
+  isOverdue: boolean;
 }
 
 const StudentCourseView = () => {
   const { courseId } = useParams<{ courseId: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const { user } = useAuth();
+
   const [courseName, setCourseName] = useState('');
+  const [courseDescription, setCourseDescription] = useState('');
+  const [teacherName, setTeacherName] = useState('');
+  const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'submitted'>('all');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+
+  const fetchCourseDetails = useCallback(async () => {
+    if (!user || !courseId) {
+      setLoading(false);
+      setError("Authentication failed or course ID missing.");
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await axios.get(`${API_BASE_URL}/api/studentcourses/${courseId}`, {
+        params: { filter: filterStatus },
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
+        },
+      });
+
+      const { classroom, assignments: fetchedAssignments } = response.data;
+
+      setCourseName(classroom.name);
+      setCourseDescription(classroom.description);
+      setTeacherName(classroom.teacher);
+      setAssignments(fetchedAssignments);
+
+    } catch (err) {
+      console.error("Error fetching course details:", err);
+      if (axios.isAxiosError(err) && err.response) {
+        setError(err.response.data.error || `Failed to load course details: ${err.response.statusText}`);
+      } else {
+        setError("Failed to load course details. Please try again.");
+      }
+      toast({
+        title: "Error",
+        description: "Failed to load course details.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  }, [user, courseId, filterStatus, toast, API_BASE_URL]);
 
   useEffect(() => {
     window.scrollTo(0, 0);
-  }, []);
-
-  // Mock data for course and assignments
-  useEffect(() => {
-    if (courseId) {
-      // Set course name based on id
-      setCourseName(
-        courseId === '1' ? 'Advanced Programming' : 
-        courseId === '2' ? 'Data Structures' : 'Course'
-      );
-
-      // Mock assignments for this course
-      setAssignments([
-        {
-          id: '1',
-          title: 'Midterm Project: Building a Web Application',
-          deadline: new Date(2023, 11, 15),
-          submitted: true,
-          submittedAt: new Date(2023, 11, 10),
-          description: 'Create a functional web application that demonstrates your understanding of the core concepts.',
-          type: 'assignment'
-        },
-        {
-          id: '2',
-          title: 'Final Project: Full-Stack Implementation',
-          deadline: new Date(2023, 11, 30),
-          submitted: false,
-          description: 'Develop a complete full-stack application with authentication, database integration, and responsive UI.',
-          type: 'assignment'
-        },
-        {
-          id: '3',
-          title: 'Practical Midterm Exam',
-          deadline: new Date(2023, 10, 25),
-          submitted: true,
-          submittedAt: new Date(2023, 10, 24),
-          description: 'A hands-on exam to test your practical skills in programming and problem-solving.',
-          type: 'exam'
-        },
-        {
-          id: '4',
-          title: 'Weekly Assignment: Algorithm Implementation',
-          deadline: new Date(2023, 12, 5),
-          submitted: false,
-          description: 'Implement the discussed algorithms and submit your code with proper documentation.',
-          type: 'assignment'
-        }
-      ]);
-    }
-  }, [courseId]);
-
-  // Filter assignments based on status
-  const filteredAssignments = assignments.filter(assignment => {
-    if (filterStatus === 'all') return true;
-    if (filterStatus === 'pending') return !assignment.submitted;
-    if (filterStatus === 'submitted') return assignment.submitted;
-    return true;
-  });
-
-  // Determine if an assignment is overdue
-  const isOverdue = (deadline: Date, submitted: boolean) => {
-    if (submitted) return false;
-    return new Date() > deadline;
-  };
+    fetchCourseDetails();
+  }, [fetchCourseDetails]);
 
   return (
     <div className="min-h-screen flex flex-col">
       <Navbar />
-      
+
       <main className="flex-grow pt-24 pb-16 px-6">
         <div className="container max-w-4xl mx-auto">
           {/* Header with back button */}
           <div className="flex items-center gap-3 mb-8">
-            <CustomButton 
-              variant="outline" 
+            <CustomButton
+              variant="outline"
               size="sm"
               onClick={() => navigate('/student-dashboard')}
               icon={<ArrowLeft className="h-4 w-4" />}
@@ -113,13 +103,14 @@ const StudentCourseView = () => {
             </CustomButton>
             <div>
               <h1 className="text-3xl font-bold">{courseName}</h1>
-              <p className="text-muted-foreground mt-1">View all assignments and exams for this course</p>
+              <p className="text-muted-foreground mt-1">Instructor: {teacherName}</p>
+              <p className="text-muted-foreground mt-1">{courseDescription}</p>
             </div>
           </div>
-          
+
           {/* Filter buttons */}
           <div className="flex gap-3 mb-6">
-            <CustomButton 
+            <CustomButton
               variant={filterStatus === 'all' ? 'primary' : 'outline'}
               size="sm"
               onClick={() => setFilterStatus('all')}
@@ -127,7 +118,7 @@ const StudentCourseView = () => {
             >
               All
             </CustomButton>
-            <CustomButton 
+            <CustomButton
               variant={filterStatus === 'pending' ? 'primary' : 'outline'}
               size="sm"
               onClick={() => setFilterStatus('pending')}
@@ -135,7 +126,7 @@ const StudentCourseView = () => {
             >
               Pending
             </CustomButton>
-            <CustomButton 
+            <CustomButton
               variant={filterStatus === 'submitted' ? 'primary' : 'outline'}
               size="sm"
               onClick={() => setFilterStatus('submitted')}
@@ -144,100 +135,130 @@ const StudentCourseView = () => {
               Submitted
             </CustomButton>
           </div>
-          
-          {/* Assignments list */}
-          <div className="space-y-4">
-            {filteredAssignments.length > 0 ? (
-              filteredAssignments.map((assignment) => (
-                <GlassmorphismCard 
-                  key={assignment.id} 
-                  className={`p-6 hover:shadow-md transition-all ${
-                    isOverdue(assignment.deadline, assignment.submitted) 
-                      ? 'border-red-400 dark:border-red-700' 
-                      : ''
-                  }`}
-                >
-                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <div className="flex-grow">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className={`px-2 py-0.5 text-xs rounded-full ${
-                          assignment.type === 'exam' 
-                            ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300' 
-                            : 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300'
-                        }`}>
-                          {assignment.type === 'exam' ? 'Exam' : 'Assignment'}
-                        </span>
-                        <h3 className="font-semibold line-clamp-1">{assignment.title}</h3>
-                      </div>
-                      
-                      <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
-                        {assignment.description}
-                      </p>
-                      
-                      <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-muted-foreground">
-                        <div className="flex items-center gap-1">
-                          <Calendar className="h-4 w-4" />
-                          <span>
-                            Due: {format(assignment.deadline, 'MMM d, yyyy')}
-                            {isOverdue(assignment.deadline, assignment.submitted) && (
-                              <span className="text-red-500 ml-1">(Overdue)</span>
-                            )}
+
+          {loading && (
+            <div className="text-center py-8">
+              <p className="text-lg text-muted-foreground">Loading course details and assignments...</p>
+            </div>
+          )}
+
+          {error && (
+            <div className="text-center py-8 text-red-500">
+              <p className="text-lg">{error}</p>
+              <CustomButton
+                variant="outline"
+                onClick={fetchCourseDetails}
+                className="mt-4"
+              >
+                Retry
+              </CustomButton>
+            </div>
+          )}
+
+          {!loading && !error && (
+            <div className="space-y-4">
+              {assignments.length > 0 ? (
+                assignments.map((assignment) => (
+                  <GlassmorphismCard
+                    key={assignment.id}
+                    className={`p-6 hover:shadow-md transition-all ${
+                      assignment.isOverdue
+                        ? 'border-red-400 dark:border-red-700'
+                        : ''
+                    }`}
+                  >
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                      <div className="flex-grow">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className={`px-2 py-0.5 text-xs rounded-full ${
+                            assignment.type === 'exam'
+                              ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300'
+                              : 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300'
+                          }`}>
+                            {assignment.type === 'exam' ? 'Exam' : 'Assignment'}
                           </span>
+                          <h3 className="font-semibold line-clamp-1">{assignment.title}</h3>
                         </div>
-                        <div className="flex items-center gap-1">
-                          {assignment.submitted ? (
-                            <>
-                              <Check className="h-4 w-4 text-green-500" />
-                              <span className="text-green-500">
-                                Submitted on {format(assignment.submittedAt!, 'MMM d, yyyy')}
-                              </span>
-                            </>
-                          ) : (
-                            <>
-                              <X className="h-4 w-4 text-red-500" />
-                              <span className="text-red-500">Not submitted</span>
-                            </>
-                          )}
+
+                        <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
+                          {assignment.description}
+                        </p>
+
+                        <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-muted-foreground">
+                          <div className="flex items-center gap-1">
+                            <Calendar className="h-4 w-4" />
+                            <span>
+                              Due:
+                              {assignment.deadline && !isNaN(new Date(assignment.deadline).getTime()) ? (
+                                format(new Date(assignment.deadline), 'MMM d, yyyy')
+                              ) : (
+                                ' N/A'
+                              )}
+                              {assignment.isOverdue && (
+                                <span className="text-red-500 ml-1">(Overdue)</span>
+                              )}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            {assignment.submitted ? (
+                              <>
+                                <Check className="h-4 w-4 text-green-500" />
+                                <span className="text-green-500">
+                                  Submitted on
+                                  {assignment.submittedAt && !isNaN(new Date(assignment.submittedAt).getTime()) ? (
+                                    format(new Date(assignment.submittedAt), 'MMM d, yyyy')
+                                  ) : (
+                                    ' N/A'
+                                  )}
+                                </span>
+                              </>
+                            ) : (
+                              <>
+                                <X className="h-4 w-4 text-red-500" />
+                                <span className="text-red-500">Not submitted</span>
+                              </>
+                            )}
+                          </div>
                         </div>
                       </div>
+
+                      <div>
+                        <CustomButton
+                          onClick={() => navigate(`/student-assignment/${courseId}/${assignment.id}`)}
+                          icon={<FileText className="h-4 w-4" />}
+                        >
+                          View {assignment.type === 'exam' ? 'Exam' : 'Assignment'}
+                        </CustomButton>
+                      </div>
                     </div>
-                    
-                    <div>
-                      <CustomButton 
-                        onClick={() => navigate(`/student-assignment/${courseId}/${assignment.id}`)}
-                        icon={<FileText className="h-4 w-4" />}
-                      >
-                        View {assignment.type === 'exam' ? 'Exam' : 'Assignment'}
-                      </CustomButton>
-                    </div>
+                  </GlassmorphismCard>
+                ))
+              ) : (
+                <div className="text-center py-12 bg-muted/30 rounded-lg border border-border">
+                  <div className="mx-auto w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4">
+                    <FileText className="h-8 w-8 text-muted-foreground" />
                   </div>
-                </GlassmorphismCard>
-              ))
-            ) : (
-              <div className="text-center py-12 bg-muted/30 rounded-lg border border-border">
-                <div className="mx-auto w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4">
-                  <FileText className="h-8 w-8 text-muted-foreground" />
+                  <h3 className="text-lg font-semibold mb-2">No {filterStatus} assignments found</h3>
+                  <p className="text-muted-foreground mb-6">
+                    {filterStatus === 'all'
+                      ? 'There are no assignments or exams for this course yet.'
+                      : filterStatus === 'pending'
+                        ? 'You have submitted all assignments for this course.'
+                        : 'You have not submitted any assignments for this course yet.'}
+                  </p>
+                  <CustomButton
+                    variant="outline"
+                    onClick={() => setFilterStatus('all')}
+                  >
+                    View All
+                  </CustomButton>
                 </div>
-                <h3 className="text-lg font-semibold mb-2">No {filterStatus} assignments found</h3>
-                <p className="text-muted-foreground mb-6">
-                  {filterStatus === 'all' 
-                    ? 'There are no assignments or exams for this course yet.' 
-                    : filterStatus === 'pending' 
-                      ? 'You have submitted all assignments for this course.' 
-                      : 'You have not submitted any assignments for this course yet.'}
-                </p>
-                <CustomButton 
-                  variant="outline"
-                  onClick={() => setFilterStatus('all')}
-                >
-                  View All
-                </CustomButton>
-              </div>
-            )}
-          </div>
+              )}
+            </div>
+          )}
         </div>
       </main>
-      
+
       <Footer />
     </div>
   );
