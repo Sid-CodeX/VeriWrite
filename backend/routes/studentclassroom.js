@@ -171,5 +171,71 @@ router.post("/join", authenticate, requireStudent, async (req, res) => {
   }
 });
 
+// GET /studentcourses/:classroomId
+router.get("/:classroomId", authenticate, requireStudent, async (req, res) => {
+  try {
+    const studentId = req.userId;
+    const { classroomId } = req.params;
+    const { filter = "all" } = req.query;
+
+    const classroom = await Classroom.findById(classroomId)
+      .populate("teacherId", "name")
+      .populate({
+        path: "assignments exams",
+        options: { sort: { deadline: 1 } } // sort by upcoming first
+      });
+
+    if (!classroom) {
+      return res.status(404).json({ error: "Classroom not found" });
+    }
+
+    // Ensure student is enrolled
+    const isEnrolled = classroom.students.some(s => s.studentId.equals(studentId));
+    if (!isEnrolled) {
+      return res.status(403).json({ error: "You are not enrolled in this classroom" });
+    }
+
+    const allItems = [...classroom.assignments, ...classroom.exams];
+
+    const filtered = allItems.filter(item => {
+      const submission = item.submissions.find(s => s.studentId.equals(studentId));
+      const submitted = submission?.submitted || false;
+
+      if (filter === "pending") return !submitted;
+      if (filter === "submitted") return submitted;
+      return true; // "all"
+    });
+
+    const responseAssignments = filtered.map(item => {
+      const submission = item.submissions.find(s => s.studentId.equals(studentId));
+      const submitted = submission?.submitted || false;
+
+      return {
+        id: item._id,
+        type: item.type,
+        title: item.title,
+        description: item.description,
+        dueDate: item.deadline,
+        status: submitted ? `Submitted on ${submission.submittedAt.toDateString()}` : "Not submitted",
+        isOverdue: new Date(item.deadline) < new Date() && !submitted,
+        submittedAt: submission?.submittedAt || null
+      };
+    });
+
+    res.status(200).json({
+      classroom: {
+        name: classroom.name,
+        description: classroom.description,
+        teacher: classroom.teacherId.name
+      },
+      assignments: responseAssignments
+    });
+
+  } catch (err) {
+    console.error("Error fetching classroom details:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 
 module.exports = router;
