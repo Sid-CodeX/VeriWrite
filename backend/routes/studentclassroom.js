@@ -215,7 +215,7 @@ router.get("/:classroomId", authenticate, requireStudent, async (req, res) => {
         type: item.type,
         title: item.title,
         description: item.description,
-        dueDate: item.deadline,
+        deadline: item.deadline,
         status: submitted ? `Submitted on ${submission.submittedAt.toDateString()}` : "Not submitted",
         isOverdue: new Date(item.deadline) < new Date() && !submitted,
         submittedAt: submission?.submittedAt || null
