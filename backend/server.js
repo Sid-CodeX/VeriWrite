@@ -9,12 +9,12 @@ const app = express();
 
 dotenv.config();
 
-const authRoutes = require("./routes/auth"); // Ensure correct path
-const ocrUploadRoutes = require("./routes/OCRuploadcheck"); // Ensure correct filename
+const authRoutes = require("./routes/auth"); 
+const ocrUploadRoutes = require("./routes/OCRuploadcheck"); 
 const courseRoutes = require("./routes/classroom");
 const onlineCheckRoutes = require("./routes/OCRonlinecheck");
 const assignmentRoutes = require("./routes/assignment");
-
+const studentClassroomRoutes = require('./routes/studentclassroom');
 
 // Middleware
 app.use(express.json());
@@ -29,9 +29,10 @@ app.use("/api/courses", courseRoutes);
 app.use("/api/onlinecheck", onlineCheckRoutes);
 app.use("/uploads/assignments", express.static(path.join(__dirname, "uploads/assignments")));
 app.use("/api/assignment", assignmentRoutes);
+app.use('/api/studentcourses', studentClassroomRoutes);
 
 // Health Check
-app.get("/", (req, res) => res.status(200).json({ message: "✅ VeriWrite API is running!" }));
+app.get("/", (req, res) => res.status(200).json({ message: "VeriWrite API is running!" }));
 
 // Periodic Cleanup: Delete old reports every 1 hour
 setInterval(async () => {
