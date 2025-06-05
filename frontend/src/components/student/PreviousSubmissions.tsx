@@ -1,9 +1,11 @@
+// frontend/src/components/student/PreviousSubmissions.tsx
 
 import { format } from 'date-fns';
-import { FileText, Check, AlertTriangle, X, Award } from 'lucide-react';
+import { FileText, Check, AlertTriangle, X, Award, Download } from 'lucide-react';
+import CustomButton from '@/components/ui/CustomButton';
 
 interface Submission {
-  id: string;
+  _id: string;
   fileName: string;
   fileSize: number;
   submittedAt: Date;
@@ -16,12 +18,12 @@ interface Submission {
 interface PreviousSubmissionsProps {
   submissions: Submission[];
   assignmentType: 'assignment' | 'exam';
+  onDownloadSubmission: (submissionId: string) => void;
 }
 
-const PreviousSubmissions = ({ submissions, assignmentType }: PreviousSubmissionsProps) => {
+const PreviousSubmissions = ({ submissions, assignmentType, onDownloadSubmission }: PreviousSubmissionsProps) => {
   if (submissions.length === 0) return null;
 
-  // Format file size for display
   const formatFileSize = (bytes: number) => {
     if (bytes < 1024) return bytes + ' bytes';
     else if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
@@ -33,8 +35,8 @@ const PreviousSubmissions = ({ submissions, assignmentType }: PreviousSubmission
       <h3 className="text-md font-medium mb-3">Previous Submissions</h3>
       <div className="space-y-3">
         {submissions.map((submission) => (
-          <div 
-            key={submission.id}
+          <div
+            key={submission._id}
             className="p-3 bg-secondary/40 rounded-md flex flex-col sm:flex-row sm:items-center justify-between gap-3"
           >
             <div className="flex items-center gap-3">
@@ -46,7 +48,7 @@ const PreviousSubmissions = ({ submissions, assignmentType }: PreviousSubmission
                 <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
                   <span>{formatFileSize(submission.fileSize)}</span>
                   <span>•</span>
-                  <span>{format(submission.submittedAt, 'MMM d, yyyy h:mm a')}</span>
+                  <span>{format(submission.submittedAt, 'MMM d, h:mm a')}</span>
                   {submission.late && (
                     <>
                       <span>•</span>
@@ -56,8 +58,8 @@ const PreviousSubmissions = ({ submissions, assignmentType }: PreviousSubmission
                 </div>
               </div>
             </div>
-            
-            <div className="ml-10 sm:ml-0">
+
+            <div className="ml-10 sm:ml-0 flex items-center gap-2">
               {submission.status === 'processing' ? (
                 <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
                   <svg className="animate-spin -ml-1 mr-2 h-3 w-3 text-blue-800 dark:text-blue-300" fill="none" viewBox="0 0 24 24">
@@ -94,6 +96,19 @@ const PreviousSubmissions = ({ submissions, assignmentType }: PreviousSubmission
                   <X className="mr-1" size={12} />
                   Error
                 </span>
+              )}
+                {/* Add download button if status is 'checked' and there's a file to download */}
+              {submission.status === 'checked' && submission.fileName && (
+                <CustomButton
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => onDownloadSubmission(submission._id)}
+                  title="Download Submission"
+                  icon={<Download className="h-4 w-4" />}
+                >
+                  {/* Add children prop here */}
+                  <span className="sr-only">Download</span> 
+                </CustomButton>
               )}
             </div>
           </div>
