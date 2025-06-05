@@ -1,4 +1,3 @@
-
 import { useState, useRef } from 'react';
 import { Upload, X, AlertTriangle } from 'lucide-react';
 import CustomButton from '@/components/ui/CustomButton';
@@ -11,14 +10,16 @@ interface FileUploaderProps {
   onSubmit: () => void;
   selectedFile: File | null;
   isUploading: boolean;
+  submissionMessage?: string; // ADD THIS LINE: It's optional as indicated by '?'
 }
 
-const FileUploader = ({ 
-  isPastDeadline, 
-  onFileSelect, 
-  onSubmit, 
-  selectedFile, 
-  isUploading 
+const FileUploader = ({
+  isPastDeadline,
+  onFileSelect,
+  onSubmit,
+  selectedFile,
+  isUploading,
+  submissionMessage, // DESTRUCTURE THIS PROP HERE
 }: FileUploaderProps) => {
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -26,16 +27,16 @@ const FileUploader = ({
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
-      
+
       // Check file type
       const fileType = file.type;
       const validTypes = [
-        'application/pdf', 
-        'application/msword', 
+        'application/pdf',
+        'application/msword',
         'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
         'text/plain'
       ];
-      
+
       if (!validTypes.includes(fileType)) {
         toast({
           title: "Invalid file type",
@@ -44,7 +45,7 @@ const FileUploader = ({
         });
         return;
       }
-      
+
       // Check file size (max 10MB)
       if (file.size > 10 * 1024 * 1024) {
         toast({
@@ -54,7 +55,7 @@ const FileUploader = ({
         });
         return;
       }
-      
+
       onFileSelect(file);
     }
   };
@@ -75,7 +76,12 @@ const FileUploader = ({
   return (
     <GlassmorphismCard className="p-6">
       <h2 className="text-lg font-semibold mb-4">Submit Your Work</h2>
-      
+
+      {/* Conditionally render submissionMessage if it exists */}
+      {submissionMessage && (
+        <p className="text-sm text-muted-foreground mb-4">{submissionMessage}</p>
+      )}
+
       {isPastDeadline && (
         <div className="bg-amber-500/10 p-4 rounded-md mb-6">
           <div className="flex items-start gap-3">
@@ -89,9 +95,9 @@ const FileUploader = ({
           </div>
         </div>
       )}
-      
+
       <div>
-        <div 
+        <div
           className="border-2 border-dashed border-border rounded-md p-8 text-center cursor-pointer hover:bg-muted/10 transition-colors mb-6"
           onClick={handleBrowseClick}
         >
@@ -102,10 +108,10 @@ const FileUploader = ({
             onChange={handleFileChange}
             accept=".pdf,.doc,.docx,.txt"
           />
-          
+
           <div className="flex flex-col items-center">
             <Upload className="h-12 w-12 text-muted-foreground mb-3" />
-            
+
             {selectedFile ? (
               <div className="animate-fade-in">
                 <p className="font-medium mb-1">{selectedFile.name}</p>
