@@ -224,6 +224,7 @@ const StudentCourseView = () => {
 
                       <div>
                         <CustomButton
+                          // Line 160: Changed the navigation path to include both courseId and assignment.id
                           onClick={() => navigate(`/student-assignment/${courseId}/${assignment.id}`)}
                           icon={<FileText className="h-4 w-4" />}
                         >
