@@ -1,14 +1,18 @@
+// frontend/src/pages/StudentAssignmentView.tsx
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, FileText, Calendar, Clock, Check, AlertTriangle, File, X, Award } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import axios from 'axios';
+import { useAuth } from '@/context/AuthContext';
+
+import { ArrowLeft, FileText, Calendar, Clock, Check, AlertTriangle, File, X, Award } from 'lucide-react';
 
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import CustomButton from '@/components/ui/CustomButton';
-import GlassmorphismCard from '@/components/ui/GlassmorphismCard';
 
+// Import your sub-components (AssignmentDetails, ExamResult, etc.)
 import AssignmentDetails from '@/components/student/AssignmentDetails';
 import ExamResult from '@/components/student/ExamResult';
 import FileUploader from '@/components/student/FileUploader';
@@ -16,307 +20,444 @@ import PreviousSubmissions from '@/components/student/PreviousSubmissions';
 import SubmissionStatusSidebar from '@/components/student/SubmissionStatusSidebar';
 import TeachersRemark from '@/components/student/TeachersRemark';
 
-interface Assignment {
-  id: string;
-  title: string;
-  deadline: Date;
-  submitted: boolean;
-  submittedAt?: Date;
-  description?: string;
-  type: 'assignment' | 'exam';
-  submissionLate?: boolean;
-  teacherRemark?: string | null;
+// --- REVISED INTERFACES ---
+interface AssignmentDetailsResponse {
+    assignmentId: string;
+    classroom: {
+        id: string;
+        name: string;
+    };
+    title: string;
+    description?: string;
+    type: 'assignment' | 'exam';
+    deadline: string; // ISO string
+    deadlinePassed: boolean;
+    submissionStatus: 'Submitted' | 'Pending';
+    submittedAt?: string | null; // ISO string or null
+    fileName?: string | null; // Name of the submitted file if submitted
+    canSubmitLate: boolean;
+    message: string;
+    submissionGuidelines: string[];
+    questionFileUrl?: string;
+    questionFileOriginalName?: string;
+    // teacherRemark is typically on the submission, not the assignment itself,
+    // so it's better to fetch it with submissions or access from the latest submission.
+    // teacherRemark?: string | null; // Removed as it's typically tied to a submission
 }
 
-interface Submission {
-  id: string;
-  fileName: string;
-  fileSize: number;
-  submittedAt: Date;
-  status: 'processing' | 'checked' | 'error';
-  similarity?: number;
-  late?: boolean;
-  score?: number;
-  markDistribution?: {
-    section: string;
-    maxMarks: number;
-    scored: number;
-  }[];
+interface StudentSubmission {
+    _id: string; // Changed from 'id' to '_id' to match common backend ObjectId naming and your PreviousSubmissions
+    fileName: string;
+    submittedAt: string; // Keep as string here, convert to Date when passing to components
+    plagiarismPercent?: number; // Renamed from similarity to match potential backend naming
+    teacherRemark?: string;
+    score?: number;
+    markDistribution?: {
+        section: string;
+        maxMarks: number;
+        scored: number;
+    }[];
+    status: 'processing' | 'checked' | 'error';
+    late: boolean;
+    fileSize: number;
 }
 
 const StudentAssignmentView = () => {
-  const { courseId, assignmentId } = useParams<{ courseId: string, assignmentId: string }>();
-  const navigate = useNavigate();
-  const { toast } = useToast();
-  const [assignment, setAssignment] = useState<Assignment | null>(null);
-  const [courseName, setCourseName] = useState('');
-  const [submissions, setSubmissions] = useState<Submission[]>([]);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
+    const { courseId, assignmentId } = useParams<{ courseId: string, assignmentId: string }>();
+    const navigate = useNavigate();
+    const { toast } = useToast();
+    const { user } = useAuth();
 
-  useEffect(() => {
-    window.scrollTo(0, 0);
-  }, []);
+    const [assignment, setAssignment] = useState<AssignmentDetailsResponse | null>(null);
+    const [submissions, setSubmissions] = useState<StudentSubmission[]>([]);
+    const [selectedFile, setSelectedFile] = useState<File | null>(null);
+    const [isUploading, setIsUploading] = useState(false);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
 
-  // Mock data for course, assignment and submissions
-  useEffect(() => {
-    if (courseId && assignmentId) {
-      // Set course name based on id
-      setCourseName(
-        courseId === '1' ? 'Advanced Programming' : 
-        courseId === '2' ? 'Data Structures' : 'Course'
-      );
+    const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
-      // Mock assignment data
-      if (assignmentId === '1') {
-        setAssignment({
-          id: '1',
-          title: 'Midterm Project: Building a Web Application',
-          deadline: new Date(2023, 11, 15),
-          submitted: true,
-          submittedAt: new Date(2023, 11, 10),
-          description: 'Create a functional web application that demonstrates your understanding of the core concepts covered in the course, including:\n\n1. User authentication and authorization\n2. Database integration with at least 3 related models\n3. Form handling with validation\n4. Responsive UI design\n\nSubmit your complete source code and a brief report explaining your implementation.',
-          type: 'assignment',
-          teacherRemark: 'Good work on implementing the authentication system. Your database models are well structured. However, the UI could be more responsive on mobile devices. Consider using a mobile-first approach for future projects.'
-        });
-        
-        setSubmissions([
-          {
-            id: '1',
-            fileName: 'midterm_project_submission.pdf',
-            fileSize: 2.4 * 1024 * 1024, // 2.4 MB
-            submittedAt: new Date(2023, 11, 10),
-            status: 'checked',
-            similarity: 12,
-            late: false
-          }
-        ]);
-      } else if (assignmentId === '2') {
-        setAssignment({
-          id: '2',
-          title: 'Final Project: Full-Stack Implementation',
-          deadline: new Date(2023, 11, 30),
-          submitted: false,
-          description: 'Develop a complete full-stack application with authentication, database integration, and responsive UI. Your application should demonstrate your mastery of the following:\n\n1. Advanced state management\n2. API integration\n3. Data validation and error handling\n4. Performance optimization\n5. Security best practices\n\nSubmit your complete source code, a detailed report, and a video demonstration of your application.',
-          type: 'assignment',
-          teacherRemark: null
-        });
-        
-        setSubmissions([]);
-      } else if (assignmentId === '3') {
-        setAssignment({
-          id: '3',
-          title: 'Practical Midterm Exam',
-          deadline: new Date(2023, 10, 25),
-          submitted: true,
-          submittedAt: new Date(2023, 10, 24),
-          description: 'A hands-on exam to test your practical skills in programming and problem-solving. You will implement solutions to three programming challenges within the allotted time.\n\nEach challenge tests different aspects:\n1. Data structures and algorithms\n2. Object-oriented design\n3. Asynchronous programming\n\nSubmit your solutions as a single compressed file.',
-          type: 'exam',
-          teacherRemark: 'Excellent work on the algorithms section. Your solution to the graph problem was elegant and efficient. For the object-oriented design, consider using more inheritance to reduce code duplication. Overall, a strong performance!'
-        });
-        
-        setSubmissions([
-          {
-            id: '1',
-            fileName: 'practical_exam_solutions.zip',
-            fileSize: 1.8 * 1024 * 1024, // 1.8 MB
-            submittedAt: new Date(2023, 10, 24),
-            status: 'checked',
-            similarity: 5,
-            late: false,
-            score: 85,
-            markDistribution: [
-              { section: 'Data Structures & Algorithms', maxMarks: 40, scored: 35 },
-              { section: 'Object-Oriented Design', maxMarks: 30, scored: 25 },
-              { section: 'Asynchronous Programming', maxMarks: 30, scored: 25 }
-            ]
-          }
-        ]);
-      } else {
-        setAssignment({
-          id: '4',
-          title: 'Weekly Assignment: Algorithm Implementation',
-          deadline: new Date(2023, 12, 5),
-          submitted: false,
-          description: 'Implement the discussed algorithms and submit your code with proper documentation. Your submission should include implementations of:\n\n1. Depth-First Search\n2. Breadth-First Search\n3. Dijkstra\'s Shortest Path\n\nInclude test cases and performance analysis for each algorithm.',
-          type: 'assignment',
-          teacherRemark: null
-        });
-        
-        setSubmissions([]);
-      }
-    }
-  }, [courseId, assignmentId]);
+    const fetchAssignmentDetails = useCallback(async () => {
+        if (!user || !assignmentId) {
+            setError("Authentication failed or assignment ID missing.");
+            setLoading(false);
+            return;
+        }
 
-  const handleSubmit = () => {
-    if (!selectedFile) {
-      toast({
-        title: "No file selected",
-        description: "Please select a file to submit",
-        variant: "destructive",
-      });
-      return;
-    }
-    
-    setIsUploading(true);
-    
-    // Determine if submission is late
-    const isLate = assignment ? new Date() > assignment.deadline : false;
-    
-    // Simulate file upload
-    setTimeout(() => {
-      const newSubmission: Submission = {
-        id: Date.now().toString(),
-        fileName: selectedFile.name,
-        fileSize: selectedFile.size,
-        submittedAt: new Date(),
-        status: 'processing',
-        late: isLate
-      };
-      
-      setSubmissions(prev => [newSubmission, ...prev]);
-      setSelectedFile(null);
-      setIsUploading(false);
-      
-      if (assignment) {
-        setAssignment({
-          ...assignment,
-          submitted: true,
-          submittedAt: new Date(),
-          submissionLate: isLate
-        });
-      }
-      
-      toast({
-        title: "Submission successful",
-        description: isLate ? 
-          "Your file has been uploaded successfully. Note: This was a late submission." : 
-          "Your file has been uploaded successfully",
-      });
-      
-      // Simulate processing
-      setTimeout(() => {
-        setSubmissions(prev => 
-          prev.map(sub => {
-            if (sub.id === newSubmission.id) {
-              // For exams, add automatic evaluation data
-              if (assignment?.type === 'exam') {
-                const score = Math.floor(Math.random() * 21) + 70; // Random score between 70-90
-                return {
-                  ...sub,
-                  status: 'checked',
-                  similarity: Math.floor(Math.random() * 20), // Lower similarity for exams
-                  score: score,
-                  markDistribution: [
-                    { section: 'Data Structures & Algorithms', maxMarks: 40, scored: Math.floor(score * 0.4) },
-                    { section: 'Object-Oriented Design', maxMarks: 30, scored: Math.floor(score * 0.3) },
-                    { section: 'Asynchronous Programming', maxMarks: 30, scored: Math.floor(score * 0.3) }
-                  ]
-                };
-              } else {
-                // For regular assignments
-                return {
-                  ...sub,
-                  status: 'checked',
-                  similarity: Math.floor(Math.random() * 30)
-                };
-              }
+        setLoading(true);
+        setError(null);
+
+        try {
+            const response = await axios.get(`${API_BASE_URL}/studentassignment/${assignmentId}`, {
+                headers: {
+                    Authorization: `Bearer ${localStorage.getItem('token')}`,
+                },
+            });
+
+            const data = response.data;
+            setAssignment(data);
+
+            // Assuming your backend response for a single assignment detail might not return *all* submissions.
+            // If you have a dedicated endpoint for all submissions, call it here.
+            // For now, if the main assignment route returns previous submissions in an array, use that.
+            // Otherwise, we'll construct a mock latest submission from the main data.
+
+            // OPTION 1: If your backend returns an array of 'submissions' directly on the assignment detail route
+            if (Array.isArray(data.submissions)) {
+                setSubmissions(data.submissions.map((sub: any) => ({
+                    _id: sub._id,
+                    fileName: sub.fileName,
+                    fileSize: sub.fileSize,
+                    submittedAt: sub.submittedAt, // Keep as string, convert in component if needed
+                    status: sub.status,
+                    plagiarismPercent: sub.plagiarismPercent,
+                    late: sub.late,
+                    score: sub.score,
+                    teacherRemark: sub.teacherRemark,
+                    markDistribution: sub.markDistribution
+                })));
             }
-            return sub;
-          })
+            // OPTION 2: If the backend only returns the *latest* submission details directly on the assignment object
+            // and you need to simulate a previous submission for display.
+            else if (data.submissionStatus === 'Submitted' && data.submittedAt && data.fileName) {
+                const latestSubmission: StudentSubmission = {
+                    _id: data.submissionId || 'temp-sub-id-' + Date.now(), // Ensure backend provides submissionId or generate a temp one
+                    fileName: data.fileName,
+                    submittedAt: data.submittedAt,
+                    status: data.status || 'checked', // Assuming 'checked' for already submitted, or 'processing' if just uploaded
+                    late: data.deadlinePassed, // If submitted after deadline
+                    plagiarismPercent: data.plagiarismPercent, // Use plagiarismPercent if backend provides it
+                    teacherRemark: data.teacherRemark || undefined, // Use data.teacherRemark if it's sent from backend
+                    score: data.score, // Use score if backend provides it
+                    markDistribution: data.markDistribution,
+                    fileSize: data.fileSize || 0 // Placeholder, as backend doesn't provide this on main route for single assignment
+                };
+                setSubmissions([latestSubmission]);
+            } else {
+                setSubmissions([]);
+            }
+
+        } catch (err) {
+            console.error("Error fetching assignment details:", err);
+            if (axios.isAxiosError(err) && err.response) {
+                setError(err.response.data.error || `Failed to load assignment details: ${err.response.statusText}`);
+            } else {
+                setError("Failed to load assignment details. Please try again.");
+            }
+            toast({
+                title: "Error",
+                description: "Failed to load assignment details.",
+                variant: "destructive",
+            });
+        } finally {
+            setLoading(false);
+        }
+    }, [user, assignmentId, toast, API_BASE_URL]);
+
+    useEffect(() => {
+        window.scrollTo(0, 0);
+        fetchAssignmentDetails();
+    }, [fetchAssignmentDetails]);
+
+    const handleSubmit = async () => {
+        if (!selectedFile || !assignment) {
+            toast({
+                title: "Missing information",
+                description: "Please select a file and ensure assignment details are loaded.",
+                variant: "destructive",
+            });
+            return;
+        }
+
+        setIsUploading(true);
+
+        const formData = new FormData();
+        formData.append('file', selectedFile);
+        formData.append('assignmentId', assignment.assignmentId);
+
+        try {
+            const uploadResponse = await axios.post(`${API_BASE_URL}/studentassignment/submit`, formData, {
+                headers: {
+                    'Content-Type': 'multipart/form-data',
+                    Authorization: `Bearer ${localStorage.getItem('token')}`,
+                },
+            });
+
+            toast({
+                title: "Submission successful",
+                description: uploadResponse.data.message || "Your file has been uploaded successfully.",
+                variant: "default",
+            });
+
+            fetchAssignmentDetails(); // Re-fetch to update status and latest submission
+
+        } catch (err) {
+            console.error("Error submitting file:", err);
+            if (axios.isAxiosError(err) && err.response) {
+                toast({
+                    title: "Submission failed",
+                    description: err.response.data.error || "Failed to upload your file. Please try again.",
+                    variant: "destructive",
+                });
+            } else {
+                toast({
+                    title: "Submission failed",
+                    description: "An unexpected error occurred during upload. Please try again.",
+                    variant: "destructive",
+                });
+            }
+        } finally {
+            setSelectedFile(null);
+            setIsUploading(false);
+        }
+    };
+
+    const isPastDeadline = assignment?.deadlinePassed ?? false;
+
+    // --- Handle question file download ---
+    const handleDownloadQuestionFile = useCallback(() => {
+        if (assignment?.questionFileUrl) {
+            window.open(assignment.questionFileUrl, '_blank'); // Opens the URL in a new tab
+            toast({
+                title: "Downloading...",
+                description: `Initiating download for ${assignment.questionFileOriginalName || 'question file'}.`,
+                variant: "default",
+            });
+        } else {
+            toast({
+                title: "No File",
+                description: "No question file available for this assignment.",
+                variant: "default",
+            });
+        }
+    }, [assignment, toast]);
+
+    // --- NEW: Handle submission file download ---
+    const handleDownloadSubmission = useCallback(async (submissionId: string) => {
+        try {
+            // Your backend should have an endpoint like `/api/studentassignment/submission/download/:submissionId`
+            // that serves the file.
+            const response = await axios.get(`${API_BASE_URL}/studentassignment/submission/download/${submissionId}`, {
+                headers: {
+                    Authorization: `Bearer ${localStorage.getItem('token')}`,
+                },
+                responseType: 'blob', // Important: responseType must be 'blob' for file downloads
+            });
+
+            const submission = submissions.find(sub => sub._id === submissionId);
+            const fileName = submission?.fileName || `submission_${submissionId}.pdf`; // Fallback filename
+
+            // Create a Blob URL and trigger the download
+            const url = window.URL.createObjectURL(new Blob([response.data]));
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', fileName); // Set the download filename
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            window.URL.revokeObjectURL(url); // Clean up the Blob URL
+
+            toast({
+                title: "Download Initiated",
+                description: `Downloading "${fileName}"...`,
+                variant: "default",
+            });
+
+        } catch (err) {
+            console.error("Error downloading submission file:", err);
+            if (axios.isAxiosError(err) && err.response) {
+                toast({
+                    title: "Download Failed",
+                    description: err.response.data.error || "Could not download the submission file. Please try again.",
+                    variant: "destructive",
+                });
+            } else {
+                toast({
+                    title: "Download Failed",
+                    description: "An unexpected error occurred during download.",
+                    variant: "destructive",
+                });
+            }
+        }
+    }, [API_BASE_URL, toast, submissions]); // Add submissions to dependencies to find the filename
+
+
+    if (loading) {
+        return (
+            <div className="min-h-screen flex flex-col">
+                <Navbar />
+                <main className="flex-grow pt-24 pb-16 px-6">
+                    <div className="container max-w-4xl mx-auto text-center">
+                        <p className="text-lg text-muted-foreground">Loading assignment details...</p>
+                    </div>
+                </main>
+                <Footer />
+            </div>
         );
-      }, 3000);
-      
-    }, 1500);
-  };
+    }
 
-  // Determine if the deadline has passed
-  const isPastDeadline = assignment ? new Date() > assignment.deadline : false;
+    if (error) {
+        return (
+            <div className="min-h-screen flex flex-col">
+                <Navbar />
+                <main className="flex-grow pt-24 pb-16 px-6">
+                    <div className="container max-w-4xl mx-auto text-center text-red-500">
+                        <p className="text-lg">{error}</p>
+                        <CustomButton
+                            variant="outline"
+                            onClick={fetchAssignmentDetails}
+                            className="mt-4"
+                        >
+                            Retry
+                        </CustomButton>
+                    </div>
+                </main>
+                <Footer />
+            </div>
+        );
+    }
 
-  if (!assignment) {
+    if (!assignment) {
+        return (
+            <div className="min-h-screen flex flex-col">
+                <Navbar />
+                <main className="flex-grow pt-24 pb-16 px-6">
+                    <div className="container max-w-4xl mx-auto text-center">
+                        <p className="text-lg text-muted-foreground">Assignment not found or invalid ID.</p>
+                        <CustomButton
+                            variant="outline"
+                            onClick={() => navigate(`/student-course/${courseId}`)}
+                            className="mt-4"
+                        >
+                            Back to Course
+                        </CustomButton>
+                    </div>
+                </main>
+                <Footer />
+            </div>
+        );
+    }
+
+    // Determine the latest submission and its teacher remark for AssignmentDetails and TeachersRemark components
+    const latestSubmission = submissions.length > 0 ? submissions[0] : null;
+
+
     return (
-      <div className="min-h-screen flex flex-col">
-        <Navbar />
-        <main className="flex-grow pt-24 pb-16 px-6">
-          <div className="container max-w-4xl mx-auto">
-            <p>Loading assignment details...</p>
-          </div>
-        </main>
-        <Footer />
-      </div>
-    );
-  }
+        <div className="min-h-screen flex flex-col">
+            <Navbar />
 
-  return (
-    <div className="min-h-screen flex flex-col">
-      <Navbar />
-      
-      <main className="flex-grow pt-24 pb-16 px-6">
-        <div className="container max-w-4xl mx-auto">
-          {/* Header with back button */}
-          <div className="flex items-center gap-3 mb-8">
-            <CustomButton 
-              variant="outline" 
-              size="sm"
-              onClick={() => navigate(`/student-course/${courseId}`)}
-              icon={<ArrowLeft className="h-4 w-4" />}
-            >
-              Back to Course
-            </CustomButton>
-            <div>
-              <h1 className="text-2xl font-bold">{assignment.title}</h1>
-              <p className="text-muted-foreground mt-1">{courseName}</p>
-            </div>
-          </div>
-          
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-            <div className="lg:col-span-2">
-              {/* Assignment details */}
-              <AssignmentDetails 
-                assignment={assignment} 
-                isPastDeadline={isPastDeadline} 
-              />
-              
-              {/* Teacher's Remark (if available) */}
-              <TeachersRemark remark={assignment.teacherRemark} />
-              
-              {/* Exam score display (if available) */}
-              {assignment.type === 'exam' && submissions.length > 0 && submissions[0].score && (
-                <ExamResult submission={submissions[0]} />
-              )}
-              
-              {/* File submission section */}
-              <FileUploader 
-                isPastDeadline={isPastDeadline}
-                onFileSelect={setSelectedFile}
-                onSubmit={handleSubmit}
-                selectedFile={selectedFile}
-                isUploading={isUploading}
-              />
-              
-              {/* Previous submissions */}
-              {submissions.length > 0 && (
-                <PreviousSubmissions 
-                  submissions={submissions} 
-                  assignmentType={assignment.type} 
-                />
-              )}
-            </div>
-            
-            {/* Sidebar with submission status and guidelines */}
-            <div>
-              <SubmissionStatusSidebar 
-                assignment={assignment} 
-                submissions={submissions} 
-              />
-            </div>
-          </div>
+            <main className="flex-grow pt-24 pb-16 px-6">
+                <div className="container max-w-4xl mx-auto">
+                    <div className="flex items-center gap-3 mb-8">
+                        <CustomButton
+                            variant="outline"
+                            size="sm"
+                            onClick={() => navigate(`/student-course/${courseId}`)}
+                            icon={<ArrowLeft className="h-4 w-4" />}
+                        >
+                            Back to Course
+                        </CustomButton>
+                        <div>
+                            <h1 className="text-2xl font-bold">{assignment.title}</h1>
+                            <p className="text-muted-foreground mt-1">{assignment.classroom.name}</p>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+                        <div className="lg:col-span-2">
+                            <AssignmentDetails
+                                assignment={{
+                                    id: assignment.assignmentId,
+                                    title: assignment.title,
+                                    description: assignment.description,
+                                    deadline: new Date(assignment.deadline),
+                                    type: assignment.type,
+                                    submitted: assignment.submissionStatus === 'Submitted',
+                                    submittedAt: assignment.submittedAt ? new Date(assignment.submittedAt) : undefined,
+                                    submissionLate: assignment.submissionStatus === 'Submitted' && assignment.deadlinePassed,
+                                    // Removed teacherRemark from here, as it's tied to submission, not assignment details
+                                    questionFile: assignment.questionFileOriginalName ? { originalName: assignment.questionFileOriginalName } : undefined
+                                }}
+                                isPastDeadline={isPastDeadline}
+                                onDownloadQuestionFile={handleDownloadQuestionFile}
+                            />
+
+                            {/* Pass teacher remark to TeachersRemark component from the latest submission */}
+                            {latestSubmission?.teacherRemark && (
+                                <TeachersRemark remark={latestSubmission.teacherRemark} />
+                            )}
+
+                            {/* Conditional rendering for ExamResult */}
+                            {assignment.type === 'exam' && latestSubmission?.score !== undefined && (
+                                <ExamResult submission={latestSubmission} />
+                            )}
+
+                            {/* Conditional rendering for FileUploader */}
+                            {((assignment.submissionStatus === 'Pending') || (assignment.submissionStatus === 'Submitted' && assignment.canSubmitLate)) && (
+                                <FileUploader
+                                    isPastDeadline={isPastDeadline}
+                                    onFileSelect={setSelectedFile}
+                                    onSubmit={handleSubmit}
+                                    selectedFile={selectedFile}
+                                    isUploading={isUploading}
+                                    submissionMessage={assignment.message}
+                                />
+                            )}
+
+                            {/* Conditional rendering for PreviousSubmissions */}
+                            {submissions.length > 0 && (
+                                <PreviousSubmissions
+                                    submissions={submissions.map(sub => ({
+                                        // Map StudentSubmission to Submission for PreviousSubmissions component
+                                        _id: sub._id, // Use _id as per updated PreviousSubmissions.tsx
+                                        fileName: sub.fileName,
+                                        fileSize: sub.fileSize,
+                                        submittedAt: new Date(sub.submittedAt), // Convert to Date object
+                                        status: sub.status,
+                                        similarity: sub.plagiarismPercent, // Map plagiarismPercent to similarity
+                                        late: sub.late,
+                                        score: sub.score
+                                    }))}
+                                    assignmentType={assignment.type}
+                                    onDownloadSubmission={handleDownloadSubmission} // Pass the new handler
+                                />
+                            )}
+                        </div>
+
+                        {/* SubmissionStatusSidebar */}
+                        <div>
+                            <SubmissionStatusSidebar
+                                assignment={{
+                                    id: assignment.assignmentId,
+                                    title: assignment.title,
+                                    deadline: new Date(assignment.deadline),
+                                    submitted: assignment.submissionStatus === 'Submitted',
+                                    submittedAt: assignment.submittedAt ? new Date(assignment.submittedAt) : undefined,
+                                    type: assignment.type,
+                                    submissionLate: assignment.submissionStatus === 'Submitted' && assignment.deadlinePassed,
+                                }}
+                                submissions={submissions.map(sub => ({
+                                    // Map StudentSubmission to the expected type for SubmissionStatusSidebar
+                                    _id: sub._id,
+                                    fileName: sub.fileName,
+                                    submittedAt: new Date(sub.submittedAt),
+                                    status: sub.status,
+                                    late: sub.late,
+                                    fileSize: sub.fileSize,
+                                    plagiarismPercent: sub.plagiarismPercent, // Ensure this is mapped correctly
+                                    score: sub.score // Ensure score is passed for exams
+                                }))}
+                                submissionGuidelines={assignment.submissionGuidelines}
+                                message={assignment.message}
+                            />
+                        </div>
+                    </div>
+                </div>
+            </main>
+
+            <Footer />
         </div>
-      </main>
-      
-      <Footer />
-    </div>
-  );
+    );
 };
 
 export default StudentAssignmentView;
