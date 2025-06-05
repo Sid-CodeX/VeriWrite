@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { Award, ChevronUp, ChevronDown } from 'lucide-react';
 import GlassmorphismCard from '@/components/ui/GlassmorphismCard';
@@ -10,7 +9,7 @@ interface MarkDistribution {
 }
 
 interface Submission {
-  id: string;
+  _id: string; // Changed from 'id' to '_id' to match StudentSubmission
   score?: number;
   markDistribution?: MarkDistribution[];
 }
@@ -38,8 +37,8 @@ const ExamResult = ({ submission }: ExamResultProps) => {
           </div>
         </div>
       </div>
-      
-      <button 
+
+      <button
         className="flex w-full items-center justify-between p-3 bg-muted/40 rounded-md mb-3 hover:bg-muted/70 transition-colors"
         onClick={() => setShowMarkDistribution(!showMarkDistribution)}
       >
@@ -50,7 +49,7 @@ const ExamResult = ({ submission }: ExamResultProps) => {
           <ChevronDown className="h-4 w-4 text-muted-foreground" />
         )}
       </button>
-      
+
       {showMarkDistribution && submission.markDistribution && (
         <div className="animate-fade-in">
           <div className="border rounded-md overflow-hidden">
