@@ -1,4 +1,4 @@
-import { format } from 'date-fns';
+import { format, isValid } from 'date-fns'; // Make sure isValid is imported
 import { Check, AlertTriangle } from 'lucide-react';
 import GlassmorphismCard from '@/components/ui/GlassmorphismCard';
 
@@ -9,7 +9,7 @@ interface Assignment {
   submitted: boolean;
   submittedAt?: Date;
   description?: string;
-  type: 'assignment' | 'exam';
+  type: 'Assignment' | 'Exam';
   submissionLate?: boolean;
 }
 
@@ -60,15 +60,18 @@ const SubmissionStatusSidebar = ({ assignment, submissions, submissionGuidelines
           <div className="flex justify-between items-center">
             <span className="text-sm text-muted-foreground">Due Date</span>
             <span className="text-sm font-medium">
-              {format(assignment.deadline, 'MMM d, h:mm a')}
+              {/* Added isValid check for assignment.deadline */}
+              {isValid(assignment.deadline) ? format(assignment.deadline, 'MMM d, h:mm a') : 'N/A'}
             </span>
           </div>
 
+          {/* Conditional rendering for submittedAt, with isValid check */}
           {assignment.submitted && assignment.submittedAt && (
             <div className="flex justify-between items-center">
               <span className="text-sm text-muted-foreground">Submitted On</span>
               <span className="text-sm font-medium">
-                {format(assignment.submittedAt, 'MMM d, h:mm a')}
+                {/* Added isValid check for assignment.submittedAt */}
+                {isValid(assignment.submittedAt) ? format(assignment.submittedAt, 'MMM d, h:mm a') : 'N/A'}
               </span>
             </div>
           )}
@@ -88,7 +91,8 @@ const SubmissionStatusSidebar = ({ assignment, submissions, submissionGuidelines
                 </span>
               </div>
 
-              {assignment.type === 'exam' && latestSubmission.score && (
+              {/* Ensure score is a number before display */}
+              {assignment.type === 'Exam' && typeof latestSubmission.score === 'number' && (
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-muted-foreground">Exam Score</span>
                   <span className="text-sm font-medium text-veri">
