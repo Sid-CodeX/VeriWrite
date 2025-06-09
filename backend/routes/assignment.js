@@ -98,8 +98,7 @@ function multerErrorHandler(middleware) {
   };
 }
 
-// POST /create-assignment
-router.post("/create-assignment", authenticate,  requireTeacher,  multerErrorHandler(upload.single("file")),  async (req, res) => {
+router.post("/create-assignment", authenticate, requireTeacher, multerErrorHandler(upload.single("file")), async (req, res) => {
     try {
       const { type, title, description, deadline, classroomId } = req.body;
       const teacherId = req.teacherId;
@@ -116,11 +115,11 @@ router.post("/create-assignment", authenticate,  requireTeacher,  multerErrorHan
       const classroom = await Classroom.findById(classroomId);
       if (!classroom) return res.status(404).json({ error: "Classroom not found" });
 
-      // Check for duplicate assignment title within the same classroom and type 
+      // Check for duplicate assignment title within the same classroom and type
       const existingAssignment = await Assignment.findOne({
         classroomId: classroomId,
         title: { $regex: new RegExp(`^${title.trim()}$`, 'i') }, // Case-insensitive exact match
-        type: type, 
+        type: type,
       });
 
       if (existingAssignment) {
@@ -135,6 +134,11 @@ router.post("/create-assignment", authenticate,  requireTeacher,  multerErrorHan
         fileName: "",
         extractedText: "",
         plagiarismPercent: null,
+        fileSize: 0, // Initialize fileSize to 0 bytes for unsubmitted files
+        submittedAt: new Date(0), // Initialize submittedAt to Epoch (a valid date) for unsubmitted files
+        status: "pending", // Changed from "processing" to "pending" for initial unsubmitted state
+        late: false, // Not late until submitted late
+        teacherRemark: "No remarks", // Default remark
       }));
 
       let questionFile = null;
