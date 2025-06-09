@@ -1,121 +1,130 @@
-// frontend/src/components/student/PreviousSubmissions.tsx
+// src/components/student/PreviousSubmissions.tsx
 
+import React from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Download, ExternalLink, FileText, CheckCircle, XCircle, Clock, Hourglass } from 'lucide-react';
 import { format } from 'date-fns';
-import { FileText, Check, AlertTriangle, X, Award, Download } from 'lucide-react';
-import CustomButton from '@/components/ui/CustomButton';
+import { Separator } from '@/components/ui/separator';
+import { Badge } from '@/components/ui/badge';
 
-interface Submission {
-  _id: string;
-  fileName: string;
-  fileSize: number;
-  submittedAt: Date;
-  status: 'processing' | 'checked' | 'error';
-  similarity?: number;
-  late?: boolean;
-  score?: number;
+// This interface must match PreviousSubmissionPropsType from StudentAssignmentView.tsx
+interface StudentSubmission {
+    _id: string;
+    fileName: string;
+    fileSize: number; // Added fileSize to match the props type
+    submittedAt: Date;
+    status: 'processing' | 'checked' | 'error';
+    similarity?: number;
+    late?: boolean;
+    score?: number;
+    teacherRemark?: string;
+    submitted: boolean; // IMPORTANT: Ensure this is present
 }
 
 interface PreviousSubmissionsProps {
-  submissions: Submission[];
-  assignmentType: 'assignment' | 'exam';
-  onDownloadSubmission: (submissionId: string) => void;
+    submissions: StudentSubmission[];
+    assignmentType: 'Assignment' | 'Exam'; // <--- ADD THIS LINE to PreviousSubmissionsProps
+    onDownloadSubmission: (submissionId: string) => void;
+    // onDeleteSubmission?: (submissionId: string) => void; // If you add this functionality later
 }
 
-const PreviousSubmissions = ({ submissions, assignmentType, onDownloadSubmission }: PreviousSubmissionsProps) => {
-  if (submissions.length === 0) return null;
+const PreviousSubmissions: React.FC<PreviousSubmissionsProps> = ({
+    submissions,
+    assignmentType, // Destructure the new prop
+    onDownloadSubmission,
+    // onDeleteSubmission,
+}) => {
 
-  const formatFileSize = (bytes: number) => {
-    if (bytes < 1024) return bytes + ' bytes';
-    else if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-    else return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
-  };
+    const formatFileSize = (bytes: number): string => {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    };
 
-  return (
-    <div>
-      <h3 className="text-md font-medium mb-3">Previous Submissions</h3>
-      <div className="space-y-3">
-        {submissions.map((submission) => (
-          <div
-            key={submission._id}
-            className="p-3 bg-secondary/40 rounded-md flex flex-col sm:flex-row sm:items-center justify-between gap-3"
-          >
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-background rounded-md">
-                <FileText className="h-5 w-5 text-veri" />
-              </div>
-              <div>
-                <p className="font-medium text-sm line-clamp-1">{submission.fileName}</p>
-                <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
-                  <span>{formatFileSize(submission.fileSize)}</span>
-                  <span>•</span>
-                  <span>{format(submission.submittedAt, 'MMM d, h:mm a')}</span>
-                  {submission.late && (
-                    <>
-                      <span>•</span>
-                      <span className="text-amber-500">Late submission</span>
-                    </>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            <div className="ml-10 sm:ml-0 flex items-center gap-2">
-              {submission.status === 'processing' ? (
-                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
-                  <svg className="animate-spin -ml-1 mr-2 h-3 w-3 text-blue-800 dark:text-blue-300" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  Processing
-                </span>
-              ) : submission.status === 'checked' ? (
-                <div className="flex flex-col items-end gap-1">
-                  {assignmentType === 'exam' && submission.score && (
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-veri/10 text-veri">
-                      <Award className="mr-1" size={12} />
-                      Score: {submission.score}/100
-                    </span>
-                  )}
-                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                    (submission.similarity || 0) > 30
-                      ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300'
-                      : (submission.similarity || 0) > 15
-                      ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300'
-                      : 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
-                  }`}>
-                    {(submission.similarity || 0) > 30 ? (
-                      <AlertTriangle className="mr-1" size={12} />
-                    ) : (
-                      <Check className="mr-1" size={12} />
-                    )}
-                    {submission.similarity}% similarity
-                  </span>
-                </div>
-              ) : (
-                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300">
-                  <X className="mr-1" size={12} />
-                  Error
-                </span>
-              )}
-                {/* Add download button if status is 'checked' and there's a file to download */}
-              {submission.status === 'checked' && submission.fileName && (
-                <CustomButton
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => onDownloadSubmission(submission._id)}
-                  title="Download Submission"
-                  icon={<Download className="h-4 w-4" />}
-                >
-                  {/* Add children prop here */}
-                  <span className="sr-only">Download</span> 
-                </CustomButton>
-              )}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
+    return (
+        <Card className="mb-6 shadow-md">
+            <CardHeader>
+                <CardTitle className="text-xl font-semibold">Previous Submissions</CardTitle>
+            </CardHeader>
+            <CardContent>
+                {submissions.length === 0 ? (
+                    <p className="text-muted-foreground text-center py-4">No previous submissions found.</p>
+                ) : (
+                    <div className="space-y-4">
+                        {submissions.map((submission) => (
+                            <div key={submission._id} className="border rounded-md p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                                <div className="flex-grow">
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <FileText className="h-5 w-5 text-gray-500" />
+                                        <span className="font-medium text-lg">{submission.fileName}</span>
+                                        {submission.late && (
+                                            <Badge variant="destructive" className="ml-2">Late</Badge>
+                                        )}
+                                    </div>
+                                    <p className="text-sm text-muted-foreground">
+                                        Submitted on: {format(submission.submittedAt, 'PPP pp')}
+                                    </p>
+                                    <p className="text-sm text-muted-foreground">
+                                        File Size: {formatFileSize(submission.fileSize)}
+                                    </p>
+                                    <div className="flex items-center gap-2 mt-2">
+                                        {submission.status === 'checked' && (
+                                            <>
+                                                <Badge variant="default" className="bg-green-500 hover:bg-green-600">
+                                                    <CheckCircle className="h-3 w-3 mr-1" /> Checked
+                                                </Badge>
+                                                {assignmentType === 'Assignment' && typeof submission.similarity === 'number' && (
+                                                    <Badge variant={submission.similarity > 20 ? "destructive" : "secondary"}>
+                                                        Plagiarism: {submission.similarity}%
+                                                    </Badge>
+                                                )}
+                                                {assignmentType === 'Exam' && typeof submission.score === 'number' && (
+                                                    <Badge>
+                                                        Score: {submission.score}
+                                                    </Badge>
+                                                )}
+                                            </>
+                                        )}
+                                        {submission.status === 'processing' && (
+                                            <Badge variant="secondary">
+                                                <Hourglass className="h-3 w-3 animate-spin mr-1" /> Processing...
+                                            </Badge>
+                                        )}
+                                        {submission.status === 'error' && (
+                                            <Badge variant="destructive">
+                                                <XCircle className="h-3 w-3 mr-1" /> Error
+                                            </Badge>
+                                        )}
+                                    </div>
+                                </div>
+                                <div className="flex gap-2">
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => onDownloadSubmission(submission._id)}
+                                    >
+                                        <Download className="h-4 w-4 mr-2" /> Download
+                                    </Button>
+                                    {/* Add a view button if you have a viewer service */}
+                                    {/* <Button variant="outline" size="sm">
+                                        <ExternalLink className="h-4 w-4 mr-2" /> View
+                                    </Button> */}
+                                    {/* {onDeleteSubmission && (
+                                        <Button variant="destructive" size="sm" onClick={() => onDeleteSubmission(submission._id)}>
+                                            Delete
+                                        </Button>
+                                    )} */}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </CardContent>
+        </Card>
+    );
 };
 
 export default PreviousSubmissions;
