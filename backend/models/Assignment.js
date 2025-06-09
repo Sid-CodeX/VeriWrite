@@ -7,6 +7,7 @@ const submissionSchema = new mongoose.Schema({
   submitted: { type: Boolean, default: false },
   submittedAt: { type: Date },
   fileName: String,
+  fileSize: { type: Number },
   extractedText: String,
   plagiarismPercent: Number,
   wordCount: Number,
