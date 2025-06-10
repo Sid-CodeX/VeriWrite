@@ -70,13 +70,6 @@ function calculateSimilarity(text1, text2) {
   return union.size === 0 ? 0 : (intersection.size / union.size) * 100;
 }
 
-// Utility: Word Count
-function getWordCount(text) {
-  if (!text || typeof text !== "string") return 0;
-  const words = text.trim().split(/\s+/);
-  return words.filter(Boolean).length;
-}
-
 // Wrapper middleware to catch multer errors in async functions
 function multerErrorHandler(middleware) {
   return (req, res, next) => {
@@ -330,14 +323,12 @@ router.post("/check-plagiarism/:assignmentId", authenticate, requireTeacher, asy
       }));
 
       const plagiarismPercent = topMatches.length > 0 ? topMatches[0].plagiarismPercent : 0;
-      const wordCount = getWordCount(currentText);
 
       const submissionToUpdate = assignment.submissions.find(
         (sub) => sub.studentId.toString() === current.studentId.toString()
       );
 
       if (submissionToUpdate) {
-        submissionToUpdate.wordCount = wordCount;
         submissionToUpdate.plagiarismPercent = plagiarismPercent;
         submissionToUpdate.topMatches = topMatches;
         submissionToUpdate.allMatches = allMatches;
