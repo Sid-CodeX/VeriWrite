@@ -197,30 +197,40 @@ router.get("/:classroomId", authenticate, requireStudent, async (req, res) => {
 
     const allItems = [...classroom.assignments, ...classroom.exams];
 
-    const filtered = allItems.filter(item => {
-      const submission = item.submissions.find(s => s.studentId.equals(studentId));
-      const submitted = submission?.submitted || false;
+    const responseAssignments = allItems
+      .map(item => {
+        // Find the specific student's latest submission for this assignment/exam
+        // Assuming you want the *latest* valid submission for status
+        const studentSubmissions = item.submissions
+                                    .filter(s => s.studentId && s.studentId.equals(studentId) && s.submitted)
+                                    .sort((a, b) => b.submittedAt - a.submittedAt); // Sort by most recent first
 
-      if (filter === "pending") return !submitted;
-      if (filter === "submitted") return submitted;
-      return true; // "all"
-    });
+        const latestSubmission = studentSubmissions.length > 0 ? studentSubmissions[0] : null;
 
-    const responseAssignments = filtered.map(item => {
-      const submission = item.submissions.find(s => s.studentId.equals(studentId));
-      const submitted = submission?.submitted || false;
+        const submitted = !!latestSubmission; // True if a latestSubmission exists
+        const submittedAt = latestSubmission?.submittedAt || null;
 
-      return {
-        id: item._id,
-        type: item.type,
-        title: item.title,
-        description: item.description,
-        deadline: item.deadline,
-        status: submitted ? `Submitted on ${submission.submittedAt.toDateString()}` : "Not submitted",
-        isOverdue: new Date(item.deadline) < new Date() && !submitted,
-        submittedAt: submission?.submittedAt || null
-      };
-    });
+        const deadlineDate = new Date(item.deadline);
+        const now = new Date();
+        const isOverdue = deadlineDate < now && !submitted; // An item is overdue if deadline passed AND it's not submitted
+
+        return {
+          id: item._id,
+          type: item.type,
+          title: item.title,
+          description: item.description,
+          deadline: item.deadline, // Keep as string/Date from DB
+          submitted: submitted, // <--- EXPLICITLY ADDED THIS BOOLEAN
+          submittedAt: submittedAt, // <--- EXPLICITLY ADDED THIS DATE/NULL
+          isOverdue: isOverdue, // This will be calculated on the backend now for consistency
+        };
+      })
+      .filter(item => {
+        // Apply frontend filter logic AFTER preparing all items
+        if (filter === "pending") return !item.submitted;
+        if (filter === "submitted") return item.submitted;
+        return true; // "all"
+      });
 
     res.status(200).json({
       classroom: {
@@ -228,7 +238,8 @@ router.get("/:classroomId", authenticate, requireStudent, async (req, res) => {
         description: classroom.description,
         teacher: classroom.teacherId.name
       },
-      assignments: responseAssignments
+      // Sort assignments by deadline (upcoming first) for the final response
+      assignments: responseAssignments.sort((a, b) => new Date(a.deadline).getTime() - new Date(b.deadline).getTime())
     });
 
   } catch (err) {
