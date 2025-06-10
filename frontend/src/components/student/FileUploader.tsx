@@ -6,7 +6,7 @@ import { useToast } from '@/hooks/use-toast';
 
 interface FileUploaderProps {
   isPastDeadline: boolean;
-  canSubmitLate: boolean; // <--- ADD THIS LINE
+  canSubmitLate: boolean;
   onFileSelect: (file: File | null) => void;
   onSubmit: () => void;
   selectedFile: File | null;
@@ -16,7 +16,7 @@ interface FileUploaderProps {
 
 const FileUploader = ({
   isPastDeadline,
-  canSubmitLate, // <--- Destructure this prop here
+  canSubmitLate,
   onFileSelect,
   onSubmit,
   selectedFile,
@@ -30,21 +30,44 @@ const FileUploader = ({
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
 
-      // Check file type
-      const fileType = file.type;
-      const validTypes = [
-        'application/pdf',
-        'application/msword',
-        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        'text/plain'
-      ];
+      // Define allowed extensions and their corresponding MIME types
+      // Using an object for easier lookup and mapping
+      const allowedFileTypes: { [key: string]: string[] } = {
+        ".pdf": ["application/pdf"],
+        ".docx": ["application/vnd.openxmlformats-officedocument.wordprocessingml.document"],
+        ".doc": ["application/msword"], // Including .doc as it's common for Word files
+        ".jpg": ["image/jpeg"],
+        ".jpeg": ["image/jpeg"],
+        ".png": ["image/png"],
+      };
 
-      if (!validTypes.includes(fileType)) {
+      const fileExtension = file.name.split('.').pop()?.toLowerCase();
+      const fileType = file.type;
+
+      let isValidType = false;
+      if (fileExtension && allowedFileTypes[`.\u200B${fileExtension}`]) { // Check by extension
+        isValidType = allowedFileTypes[`.\u200B${fileExtension}`].includes(fileType);
+      } else { // Fallback check by MIME type if extension not matched or missing
+        for (const ext in allowedFileTypes) {
+          if (allowedFileTypes[ext].includes(fileType)) {
+            isValidType = true;
+            break;
+          }
+        }
+      }
+
+      // If neither extension nor MIME type match, it's invalid
+      if (!isValidType) {
         toast({
           title: "Invalid file type",
-          description: "Please upload a PDF, Word or Text file",
+          description: "Please upload a PDF, Word document (DOC, DOCX), or Image (JPG, JPEG, PNG) file.",
           variant: "destructive",
         });
+        // Clear the selected file if it's invalid
+        if (fileInputRef.current) {
+          fileInputRef.current.value = "";
+        }
+        onFileSelect(null);
         return;
       }
 
@@ -52,13 +75,20 @@ const FileUploader = ({
       if (file.size > 10 * 1024 * 1024) {
         toast({
           title: "File too large",
-          description: "Please upload a file smaller than 10MB",
+          description: "Please upload a file smaller than 10MB.",
           variant: "destructive",
         });
+        // Clear the selected file if it's too large
+        if (fileInputRef.current) {
+          fileInputRef.current.value = "";
+        }
+        onFileSelect(null);
         return;
       }
 
       onFileSelect(file);
+    } else {
+      onFileSelect(null); // No file selected, reset
     }
   };
 
@@ -115,7 +145,8 @@ const FileUploader = ({
               ref={fileInputRef}
               className="hidden"
               onChange={handleFileChange}
-              accept=".pdf,.doc,.docx,.txt"
+              // Updated 'accept' attribute based on allowedExtensions
+              accept=".pdf,.docx,.doc,.jpg,.jpeg,.png,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,image/jpeg,image/png"
             />
 
             <div className="flex flex-col items-center">
@@ -134,6 +165,9 @@ const FileUploader = ({
                       onClick={(e) => {
                         e.stopPropagation();
                         onFileSelect(null);
+                        if (fileInputRef.current) { // Clear the input field
+                          fileInputRef.current.value = "";
+                        }
                       }}
                       icon={<X className="h-4 w-4" />}
                     >
@@ -161,7 +195,7 @@ const FileUploader = ({
                     or click to browse from your computer
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    Supported formats: PDF, Word, Text (Max 10MB)
+                    Supported formats: **PDF, Word (DOC, DOCX), Images (JPG, JPEG, PNG)** (Max 10MB)
                   </p>
                 </>
               )}
