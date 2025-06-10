@@ -204,11 +204,11 @@ const StudentCourseView = () => {
                               <>
                                 <Check className="h-4 w-4 text-green-500" />
                                 <span className="text-green-500">
-                                  Submitted on
+                                  Submitted on{' '} {/* Added a space here */}
                                   {assignment.submittedAt && !isNaN(new Date(assignment.submittedAt).getTime()) ? (
                                     format(new Date(assignment.submittedAt), 'MMM d, yyyy')
                                   ) : (
-                                    ' N/A'
+                                    'N/A' // Changed to N/A without leading space if submittedAt is null
                                   )}
                                 </span>
                               </>
@@ -224,7 +224,6 @@ const StudentCourseView = () => {
 
                       <div>
                         <CustomButton
-                          // Line 160: Changed the navigation path to include both courseId and assignment.id
                           onClick={() => navigate(`/student-assignment/${courseId}/${assignment.id}`)}
                           icon={<FileText className="h-4 w-4" />}
                         >
