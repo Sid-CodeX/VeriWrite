@@ -119,7 +119,7 @@ const StudentAssignmentView: React.FC = () => {
             });
         }
         return token;
-    }, [toast]); 
+    }, [toast]);
 
     const fetchAssignmentDetails = useCallback(async () => {
         const token = getAuthToken();
@@ -170,7 +170,7 @@ const StudentAssignmentView: React.FC = () => {
                     variant: "destructive",
                 });
                 if (err.response.status === 401 || err.response.status === 403) {
-                    navigate('/login'); 
+                    navigate('/login');
                 }
             } else {
                 setError("Failed to load assignment details. Please try again.");
@@ -218,7 +218,7 @@ const StudentAssignmentView: React.FC = () => {
                     headers: {
                         Authorization: `Bearer ${token}`,
                     },
-                    responseType: 'blob', 
+                    responseType: 'blob',
                 }
             );
 
@@ -226,11 +226,11 @@ const StudentAssignmentView: React.FC = () => {
             const url = window.URL.createObjectURL(new Blob([response.data]));
             const link = document.createElement('a');
             link.href = url;
-            link.setAttribute('download', questionFileDisplayName); 
+            link.setAttribute('download', questionFileDisplayName);
             document.body.appendChild(link);
             link.click();
             link.remove();
-            window.URL.revokeObjectURL(url); 
+            window.URL.revokeObjectURL(url);
 
             toast({
                 title: "Downloading...",
@@ -248,7 +248,7 @@ const StudentAssignmentView: React.FC = () => {
                     variant: "destructive",
                 });
                 if (err.response.status === 401 || err.response.status === 403) {
-                    navigate('/login'); 
+                    navigate('/login');
                 }
             } else {
                 toast({
@@ -288,7 +288,7 @@ const StudentAssignmentView: React.FC = () => {
                     headers: {
                         Authorization: `Bearer ${token}`,
                     },
-                    responseType: 'blob', 
+                    responseType: 'blob',
                 }
             );
 
@@ -315,7 +315,7 @@ const StudentAssignmentView: React.FC = () => {
                     variant: "destructive",
                 });
                 if (err.response.status === 401 || err.response.status === 403) {
-                    navigate('/login'); 
+                    navigate('/login');
                 }
             } else {
                 toast({
@@ -349,29 +349,38 @@ const StudentAssignmentView: React.FC = () => {
             return;
         }
 
-        if (!user?.id) {
-            toast({
-                title: "User ID Missing",
-                description: "Could not identify your user ID for submission.",
-                variant: "destructive",
-            });
-            return;
-        }
+        // The backend expects studentId from JWT and assignmentId from URL params.
+        // No need to append them to FormData.
+        // The `user?.id` check below was originally for sending studentId in formData,
+        // but can be kept as a general safeguard if `user` must exist for this operation.
+        // if (!user?.id) {
+        //     toast({
+        //         title: "User ID Missing",
+        //         description: "Could not identify your user ID for submission.",
+        //         variant: "destructive",
+        //     });
+        //     return;
+        // }
+
 
         setIsUploading(true);
 
         const formData = new FormData();
         formData.append('file', selectedFile);
-        formData.append('assignmentId', assignment.assignmentId);
-        formData.append('studentId', user.id); 
+        // Removed: formData.append('assignmentId', assignment.assignmentId);
+        // Removed: formData.append('studentId', user.id);
 
         try {
-            const uploadResponse = await axios.post(`${API_BASE_URL}/studentassignment/submit`, formData, {
-                headers: {
-                    'Content-Type': 'multipart/form-data',
-                    Authorization: `Bearer ${token}`,
-                },
-            });
+            const uploadResponse = await axios.post(
+                `${API_BASE_URL}/studentassignment/${assignment.assignmentId}/submit`, // Corrected URL
+                formData,
+                {
+                    headers: {
+                        'Content-Type': 'multipart/form-data',
+                        Authorization: `Bearer ${token}`,
+                    },
+                }
+            );
 
             toast({
                 title: "Submission successful",
@@ -379,7 +388,8 @@ const StudentAssignmentView: React.FC = () => {
                 variant: "default",
             });
 
-            fetchAssignmentDetails(); 
+            // Re-fetch assignment details to update the UI with the new submission status
+            fetchAssignmentDetails();
 
         } catch (err) {
             console.error("Error submitting file:", err);
@@ -391,7 +401,7 @@ const StudentAssignmentView: React.FC = () => {
                     variant: "destructive",
                 });
                 if (err.response.status === 401 || err.response.status === 403) {
-                    navigate('/login'); 
+                    navigate('/login');
                 }
             } else {
                 toast({
@@ -401,7 +411,7 @@ const StudentAssignmentView: React.FC = () => {
                 });
             }
         } finally {
-            setSelectedFile(null);
+            setSelectedFile(null); // Clear selected file after attempt
             setIsUploading(false);
         }
     };
@@ -454,7 +464,7 @@ const StudentAssignmentView: React.FC = () => {
                     variant: "destructive",
                 });
                 if (err.response.status === 401 || err.response.status === 403) {
-                    navigate('/login'); 
+                    navigate('/login');
                 }
             } else {
                 toast({
@@ -624,7 +634,7 @@ const StudentAssignmentView: React.FC = () => {
                             {/* Conditionally render PreviousSubmissions ONLY if there are valid, filtered submissions */}
                             {filteredAndMappedSubmissions.length > 0 && (
                                 <PreviousSubmissions
-                                    submissions={filteredAndMappedSubmissions} 
+                                    submissions={filteredAndMappedSubmissions}
                                     assignmentType={assignment.type}
                                     onDownloadSubmission={handleDownloadSubmission}
                                 />
@@ -634,7 +644,7 @@ const StudentAssignmentView: React.FC = () => {
                         <div>
                             <SubmissionStatusSidebar
                                 assignment={assignmentDetailsProps}
-                                submissions={filteredAndMappedSubmissions} 
+                                submissions={filteredAndMappedSubmissions}
                                 submissionGuidelines={assignment.submissionGuidelines}
                                 message={assignment.message}
                             />
