@@ -8,6 +8,7 @@ const path = require("path");
 const pdfParse = require("pdf-parse");
 const mammoth = require("mammoth");
 const { extractTextFromImage } = require("../utils/ocr");
+const { generateMinHashSignature } = require("../utils/minhash");
 
 const router = express.Router();
 
@@ -206,11 +207,12 @@ router.post("/:assignmentId/submit", authenticate, requireStudent, upload.single
   const filePath = file.path;
   const fileExt = path.extname(file.originalname).toLowerCase();
 
-  // ✅ Validate file extension and MIME type
-  const allowedExtensions = [".pdf", ".docx", ".jpg", ".jpeg", ".png"];
+  // Validate file extension and MIME type
+  const allowedExtensions = [".pdf", ".docx", ".doc", ".jpg", ".jpeg", ".png"]; // Added .doc here
   const allowedMimeTypes = [
     "application/pdf",
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/msword", // .doc
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document", // .docx
     "image/jpeg",
     "image/png"
   ];
@@ -228,11 +230,13 @@ router.post("/:assignmentId/submit", authenticate, requireStudent, upload.single
     if (fileExt === ".pdf") {
       const pdfData = await pdfParse(await fs.readFile(filePath));
       extractedText = pdfData.text;
-    } else if (fileExt === ".docx") {
+    } else if ([".doc", ".docx"].includes(fileExt)) { // Handle both .doc and .docx
       const docData = await mammoth.extractRawText({ path: filePath });
       extractedText = docData.value;
     } else if ([".png", ".jpg", ".jpeg"].includes(fileExt)) {
       extractedText = await extractTextFromImage(filePath);
+    } else {
+      return res.status(400).json({ error: `Unsupported file format: ${file.originalname}` });
     }
 
     if (!extractedText.trim()) {
@@ -240,6 +244,8 @@ router.post("/:assignmentId/submit", authenticate, requireStudent, upload.single
     }
 
     const wordCount = (extractedText.match(/\b\w+\b/g) || []).length;
+    // Generate MinHash Signature 
+    const minHashSignature = generateMinHashSignature(extractedText); // Uses default k and numPermutations
 
     // 2. Update submission in Assignment schema
     const assignment = await Assignment.findById(assignmentId);
@@ -268,7 +274,8 @@ router.post("/:assignmentId/submit", authenticate, requireStudent, upload.single
     submission.fileSize = file.size;
     submission.extractedText = extractedText;
     submission.wordCount = wordCount;
-    submission.late = deadlinePassed; // Mark as late if submitted after deadline
+    submission.minHashSignature = minHashSignature; 
+    submission.late = deadlinePassed; 
 
     await assignment.save();
 
