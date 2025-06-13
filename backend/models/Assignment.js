@@ -12,6 +12,8 @@ const submissionSchema = new mongoose.Schema({
   plagiarismPercent: Number,
   wordCount: Number,
   teacherRemark: { type: String, default: "No remarks" },
+  minHashSignature: { type: [Number], default: [] },
+  late: { type: Boolean, default: false },
 
   topMatches: [{
     matchedStudentId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
@@ -20,7 +22,7 @@ const submissionSchema = new mongoose.Schema({
   }],
 
   allMatches: [{
-    name: String,
+    matchedStudentId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     plagiarismPercent: Number
   }]
 });
