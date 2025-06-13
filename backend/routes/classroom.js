@@ -103,7 +103,7 @@ router.post("/add-student", authenticate, requireTeacher, async (req, res) => {
   try {
     const { classroomId, studentEmail } = req.body;
 
-    // Find student by email and role 
+    // Find student
     const student = await User.findOne({ email: studentEmail, role: "student" });
     if (!student) {
       return res.status(404).json({ error: "Student not found" });
@@ -115,7 +115,7 @@ router.post("/add-student", authenticate, requireTeacher, async (req, res) => {
       return res.status(404).json({ error: "Classroom not found" });
     }
 
-    // Check if student is already added to the classroom
+    // Check if student already exists in classroom
     const alreadyAdded = classroom.students.some(
       (s) => s.studentId.toString() === student._id.toString()
     );
@@ -123,18 +123,36 @@ router.post("/add-student", authenticate, requireTeacher, async (req, res) => {
       return res.status(400).json({ error: "Student is already in this classroom" });
     }
 
-    // Add student to the classroom
+    // Add student to classroom
     classroom.students.push({
       studentId: student._id,
       name: student.name,
       email: student.email,
     });
-
     classroom.numStudents += 1;
-
     await classroom.save();
+
+    // Add student to all assignments and exams in this classroom
+    const allAssignmentIds = [...classroom.assignments, ...classroom.exams];
+
+    await Assignment.updateMany(
+      { _id: { $in: allAssignmentIds } },
+      {
+        $push: {
+          submissions: {
+            studentId: student._id,
+            name: student.name,
+            email: student.email,
+            submitted: false,
+            plagiarismPercent: 0,
+            wordCount: 0
+          }
+        }
+      }
+    );
+
     res.status(200).json({
-      message: "Student added successfully",
+      message: "Student added successfully and assigned to all assignments/exams.",
       student: { name: student.name, email: student.email },
     });
   } catch (error) {
@@ -142,6 +160,7 @@ router.post("/add-student", authenticate, requireTeacher, async (req, res) => {
     res.status(500).json({ error: "Server error" });
   }
 });
+
 
 // View course
 router.get("/view-course/:id", authenticate, requireTeacher, async (req, res) => {
