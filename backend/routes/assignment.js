@@ -5,6 +5,9 @@ const jwt = require("jsonwebtoken");
 
 const Classroom = require("../models/Classroom");
 const Assignment = require("../models/Assignment");
+const { calculateJaccardSimilarity } = require("../utils/similarity");
+const { findCandidatePairs } = require("../utils/lsh");
+const User = require("../models/User"); // Added User model import for view-report enhancements
 
 const router = express.Router();
 
@@ -49,26 +52,6 @@ const upload = multer({
   limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
   fileFilter,
 });
-
-// Utility: Calculate Jaccard Similarity
-function calculateSimilarity(text1, text2) {
-  const tokenize = (text) => {
-    if (!text || typeof text !== "string") return [];
-    return text
-      .toLowerCase()
-      .replace(/[^\w\s]/g, "") // remove punctuation
-      .split(/\s+/)
-      .filter(Boolean);
-  };
-
-  const set1 = new Set(tokenize(text1));
-  const set2 = new Set(tokenize(text2));
-
-  const intersection = new Set([...set1].filter((word) => set2.has(word)));
-  const union = new Set([...set1, ...set2]);
-
-  return union.size === 0 ? 0 : (intersection.size / union.size) * 100;
-}
 
 // Wrapper middleware to catch multer errors in async functions
 function multerErrorHandler(middleware) {
@@ -126,12 +109,13 @@ router.post("/create-assignment", authenticate, requireTeacher, multerErrorHandl
         submitted: false,
         fileName: "",
         extractedText: "",
+        minHashSignature: [],
         plagiarismPercent: null,
-        fileSize: 0, // Initialize fileSize to 0 bytes for unsubmitted files
-        submittedAt: new Date(0), // Initialize submittedAt to Epoch (a valid date) for unsubmitted files
-        status: "pending", // Changed from "processing" to "pending" for initial unsubmitted state
-        late: false, // Not late until submitted late
-        teacherRemark: "No remarks", // Default remark
+        fileSize: 0,
+        submittedAt: new Date(0),
+        status: "pending",
+        late: false,
+        teacherRemark: "No remarks",
       }));
 
       let questionFile = null;
@@ -175,7 +159,7 @@ router.post("/create-assignment", authenticate, requireTeacher, multerErrorHandl
           deadline: newAssignment.deadline,
           type: newAssignment.type,
           description: newAssignment.description,
-          submissions: `0/${classroom.numStudents}`, // Initial submissions
+          submissions: `0/${classroom.numStudents}`,
           hasFile: !!newAssignment.questionFile, // Indicate if file was uploaded
         }
       });
@@ -219,6 +203,7 @@ router.get("/view/:assignmentId", authenticate, requireTeacher, async (req, res)
         if (isChecked) checked++;
 
         return {
+          studentId: submission.studentId,
           name: student.name,
           email: student.email,
           status: "Submitted",
@@ -232,6 +217,7 @@ router.get("/view/:assignmentId", authenticate, requireTeacher, async (req, res)
         };
       } else {
         return {
+          studentId: student.studentId,
           name: student.name,
           email: student.email,
           status: "Pending",
@@ -261,8 +247,7 @@ router.get("/view/:assignmentId", authenticate, requireTeacher, async (req, res)
     console.error("Error fetching assignment view:", error);
     res.status(500).json({ message: "Server error" });
   }
-});
-
+}); 
 
 // POST /check-plagiarism/:assignmentId
 router.post("/check-plagiarism/:assignmentId", authenticate, requireTeacher, async (req, res) => {
@@ -275,71 +260,125 @@ router.post("/check-plagiarism/:assignmentId", authenticate, requireTeacher, asy
       return res.status(404).json({ error: "Assignment not found" });
     }
 
-    const submissions = assignment.submissions.filter((sub) => sub.submitted && sub.extractedText);
+    // Filter for submissions that are submitted, have extracted text, and a MinHash signature
+    const allSubmissions = assignment.submissions.filter(
+      (sub) => sub.submitted && sub.extractedText && sub.minHashSignature && sub.minHashSignature.length > 0
+    );
 
-    if (submissions.length < 2) {
-      return res.status(400).json({ error: "Not enough submissions to check plagiarism." });
+    if (allSubmissions.length < 2) {
+      return res.status(400).json({ error: "Not enough valid submissions with generated signatures to check plagiarism." });
     }
 
-    for (let i = 0; i < submissions.length; i++) {
-      const current = submissions[i];
-      const currentText = current.extractedText || "";
+    // Prepare data for LSH: only need the _id and signature, plus student info for processing
+    const signaturesWithIds = allSubmissions.map(sub => ({
+      submissionId: sub._id.toString(), // Convert ObjectId to string for map keys and LSH
+      studentId: sub.studentId.toString(), // Also include studentId for direct mapping
+      signature: sub.minHashSignature,
+      extractedText: sub.extractedText, // Keep extractedText here for direct access
+      name: sub.name, 
+      email: sub.email, 
+    }));
 
-      let matches = [];
+    // Find candidate pairs using LSH
+    const candidatePairs = findCandidatePairs(signaturesWithIds);
 
-      for (let j = 0; j < submissions.length; j++) {
-        if (i === j) continue;
+    // Create a map for quick lookup of submission data by its submission._id string
+    const submissionDataMap = new Map(signaturesWithIds.map(sub => [sub.submissionId, sub]));
 
-        try {
-          const other = submissions[j];
-          const similarity = calculateSimilarity(currentText, other.extractedText || "");
+    // Map to store plagiarism results for each student (by studentId string)
+    const plagiarismResults = new Map();
 
-          matches.push({
-            matchedStudentId: other.studentId,
-            name: other.name,
-            email: other.email,
-            similarity,
-            matchedText: other.extractedText,
-          });
-        } catch (err) {
-          console.error(
-            `Error calculating similarity between submission ${current.studentId} and ${submissions[j].studentId}:`,
-            err
-          );
+    // Perform precise similarity check ONLY on candidate pairs
+    for (const [id1, id2] of candidatePairs) {
+        const subData1 = submissionDataMap.get(id1);
+        const subData2 = submissionDataMap.get(id2);
+
+        if (!subData1 || !subData2) {
+            console.warn(`Missing submission data for candidate pair IDs: ${id1}, ${id2}`);
+            continue; // Skip if data is unexpectedly missing
         }
-      }
 
-      matches.sort((a, b) => b.similarity - a.similarity);
+        // Calculate similarity (returns a decimal between 0 and 1)
+        const similarity = calculateJaccardSimilarity(subData1.extractedText, subData2.extractedText);
 
-      const topMatches = matches.slice(0, 2).map((match) => ({
-        matchedStudentId: match.matchedStudentId,
-        matchedText: match.matchedText,
-        plagiarismPercent: parseFloat(match.similarity.toFixed(2)),
-      }));
+        // Helper to update results for a student
+        // This function now stores `matchedStudentId` and `plagiarismPercent` for `allMatches`
+        const updateStudentResults = (currentStudentId, otherStudentId, simValue) => {
+            if (!plagiarismResults.has(currentStudentId)) {
+                plagiarismResults.set(currentStudentId, {
+                    topMatches: [], // Will be populated and sorted later
+                    allMatches: [], // Stores only matchedStudentId and plagiarismPercent for consistency with schema
+                    maxSimilarity: 0 // Keep as 0-1 decimal for internal max tracking
+                });
+            }
+            const studentRes = plagiarismResults.get(currentStudentId);
+            studentRes.allMatches.push({
+                matchedStudentId: otherStudentId, // Directly available student ID
+                plagiarismPercent: parseFloat((simValue * 100).toFixed(2)),
+            });
+            studentRes.maxSimilarity = Math.max(studentRes.maxSimilarity, simValue);
+        };
 
-      const allMatches = matches.map((match) => ({
-        name: match.name,
-        plagiarismPercent: parseFloat(match.similarity.toFixed(2)),
-      }));
+        // Update plagiarism info for subData1's student
+        updateStudentResults(
+            subData1.studentId, // Current student ID
+            subData2.studentId, // Matched student ID
+            similarity
+        );
 
-      const plagiarismPercent = topMatches.length > 0 ? topMatches[0].plagiarismPercent : 0;
+        // Update plagiarism info for subData2's student (symmetric comparison)
+        updateStudentResults(
+            subData2.studentId, // Current student ID
+            subData1.studentId, // Matched student ID
+            similarity
+        );
+    }
 
-      const submissionToUpdate = assignment.submissions.find(
-        (sub) => sub.studentId.toString() === current.studentId.toString()
-      );
+    //  Update each submission in the database based on calculated results ---
+    for (const submission of assignment.submissions) {
+        const studentIdString = submission.studentId.toString();
+        const studentResult = plagiarismResults.get(studentIdString);
 
-      if (submissionToUpdate) {
-        submissionToUpdate.plagiarismPercent = plagiarismPercent;
-        submissionToUpdate.topMatches = topMatches;
-        submissionToUpdate.allMatches = allMatches;
-      }
+        if (studentResult) {
+            // Sort allMatches by plagiarism percentage descending
+            // Note: allMatches now contains the 0-100 percentage
+            studentResult.allMatches.sort((a, b) => b.plagiarismPercent - a.plagiarismPercent);
+
+            // Slice for top 3 matches and correctly map to the schema format
+            // Here, we retrieve the matchedText and name from the 'signaturesWithIds' map
+            // that contains all necessary original data for the topMatches.
+            const topMatchesFormatted = studentResult.allMatches.slice(0, 3).map((match) => {
+              // Find the original data for the matched student from our pre-processed list
+              const matchedStudentOriginalData = signaturesWithIds.find(s => s.studentId === match.matchedStudentId);
+
+              return {
+                matchedStudentId: match.matchedStudentId,
+                matchedText: matchedStudentOriginalData ? matchedStudentOriginalData.extractedText : '', // Use stored extractedText
+                plagiarismPercent: match.plagiarismPercent
+              };
+            });
+
+            // The main plagiarismPercent should also be 0-100
+            submission.plagiarismPercent = parseFloat((studentResult.maxSimilarity * 100).toFixed(2));
+            submission.topMatches = topMatchesFormatted;
+            // The `allMatches` array here already matches the schema (only matchedStudentId and plagiarismPercent)
+            // No need to re-map it, just assign directly.
+            submission.allMatches = studentResult.allMatches;
+            // wordCount is not re-calculated here as it's set during submission
+        } else {
+            // If a submission was not part of any candidate pair (e.g., very unique, or fewer than 2 total)
+            submission.plagiarismPercent = 0;
+            submission.topMatches = [];
+            submission.allMatches = [];
+        }
     }
 
     await assignment.save();
 
     return res.status(200).json({
-      message: "Plagiarism check completed",
-      totalSubmissions: submissions.length,
+      message: "Plagiarism check completed using LSH for efficiency.",
+      totalSubmissions: allSubmissions.length,
+      candidatesChecked: candidatePairs.length, // Number of pairs LSH identified
       checkedAt: new Date(),
     });
   } catch (err) {
@@ -353,7 +392,8 @@ router.get("/view-report/:assignmentId/:studentId", authenticate, requireTeacher
   const { assignmentId, studentId } = req.params;
 
   try {
-    const assignment = await Assignment.findById(assignmentId).populate("classroomId", "name").lean();
+    // Populate classroom students to ensure we have student names/emails for original submissions if needed later
+    const assignment = await Assignment.findById(assignmentId).populate("classroomId", "name students");
 
     if (!assignment) {
       return res.status(404).json({ error: "Assignment not found" });
@@ -365,14 +405,46 @@ router.get("/view-report/:assignmentId/:studentId", authenticate, requireTeacher
       return res.status(404).json({ error: "Submission not found or not submitted" });
     }
 
+    // Enhance allMatches with names/emails by querying User model
+    const allMatchesWithNames = await Promise.all(
+        (submission.allMatches || []).map(async (match) => {
+            if (match.matchedStudentId) {
+                const matchedUser = await User.findById(match.matchedStudentId).select('name email').lean();
+                return {
+                    ...match,
+                    name: matchedUser ? matchedUser.name : 'Unknown',
+                    email: matchedUser ? matchedUser.email : 'Unknown',
+                };
+            }
+            return match;
+        })
+    );
+
+    // For topMatches, directly use the stored matchedText, and fetch name/email from User model
+    const topMatchesWithDetails = await Promise.all(
+        (submission.topMatches || []).map(async (match) => {
+            if (match.matchedStudentId) {
+                const matchedUser = await User.findById(match.matchedStudentId).select('name email').lean();
+                return {
+                    ...match,
+                    name: matchedUser ? matchedUser.name : 'Unknown',
+                    email: matchedUser ? matchedUser.email : 'Unknown',
+                    // matchedText is already in match, as populated by check-plagiarism route
+                };
+            }
+            return match;
+        })
+    );
+
+
     res.json({
       studentId: submission.studentId,
       name: submission.name,
       email: submission.email,
-      wordCount: submission.wordCount ?? getWordCount(submission.extractedText),
+      wordCount: submission.wordCount,
       plagiarismPercent: submission.plagiarismPercent ?? 0,
-      topMatches: submission.topMatches ?? [],
-      allMatches: submission.allMatches ?? [],
+      topMatches: topMatchesWithDetails, 
+      allMatches: allMatchesWithNames,  
       extractedText: submission.extractedText,
     });
   } catch (err) {
@@ -422,6 +494,5 @@ router.delete("/delete/:assignmentId", authenticate, requireTeacher, async (req,
     res.status(500).json({ error: "Internal server error" });
   }
 });
-
 
 module.exports = router;
