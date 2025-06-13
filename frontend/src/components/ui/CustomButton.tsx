@@ -3,7 +3,7 @@ import { cn } from '@/lib/utils';
 
 interface CustomButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: 'primary' | 'secondary' | 'outline' | 'ghost' | 'link' | 'destructive' | 'success' | 'default';
-  size?: 'sm' | 'md' | 'lg';
+  size?: 'sm' | 'md' | 'lg' | 'icon';
   children: React.ReactNode;
   fullWidth?: boolean;
   loading?: boolean;
