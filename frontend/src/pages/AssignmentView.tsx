@@ -21,8 +21,8 @@ interface MatchDetail {
 }
 
 interface StudentSubmissionBackend {
-  _id: string; // Added: The submission's unique ID
-  studentId: string; // ID of the student
+  // _id: string; // REMOVED: No longer directly used as an identifier in frontend logic
+  studentId: string; // This is the actual student's User ID
   name: string;
   email: string;
   status: "Submitted" | "Pending";
@@ -52,7 +52,8 @@ interface StudentSubmissionBackend {
 }
 
 interface Student {
-  id: string; // This will now correctly hold the submission ID
+  // id: string; // REMOVED: No longer needed. studentUserId will be the primary identifier for frontend
+  studentUserId: string; // The actual User ID of the student (primary identifier now)
   name: string;
   email: string;
   submissionDate: Date | null;
@@ -202,7 +203,8 @@ const AssignmentView = () => {
       });
 
       const mappedStudents: Student[] = data.studentSubmissions.map((sub: StudentSubmissionBackend) => ({
-        id: sub._id, // Corrected: Use sub._id for the submission ID
+        // id: sub._id, // REMOVED
+        studentUserId: sub.studentId, // This is the actual student's User ID
         name: sub.name,
         email: sub.email,
         submissionDate: sub.submittedDate ? new Date(sub.submittedDate) : null,
@@ -304,8 +306,7 @@ const AssignmentView = () => {
     }
   };
 
-  // NEW handleDownloadPdf function to call backend API
-  const handleDownloadPlagiarismPdf = async (submissionId: string, studentName: string, assignmentTitle: string) => {
+  const handleDownloadPlagiarismPdf = async (studentUserId: string, studentName: string, assignmentTitle: string) => {
     setIsGeneratingPdf(true);
     try {
       const token = localStorage.getItem('token');
@@ -319,7 +320,7 @@ const AssignmentView = () => {
         variant: "default",
       });
 
-      const response = await fetch(`/api/plagiarism-reports/${submissionId}/download`, {
+      const response = await fetch(`/api/plagiarism-reports/${assignmentId}/${studentUserId}/download`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -331,7 +332,6 @@ const AssignmentView = () => {
         throw new Error(`Failed to download report: ${errorData.message || response.statusText}`);
       }
 
-      // Get the filename from Content-Disposition header, or use a default
       const contentDisposition = response.headers.get('Content-Disposition');
       let filename = `plagiarism_report_${studentName.replace(/\s/g, '_')}_${assignmentTitle.replace(/\s/g, '_')}.pdf`;
       if (contentDisposition) {
@@ -560,7 +560,7 @@ const AssignmentView = () => {
                   </thead>
                   <tbody className="bg-background divide-y divide-border">
                     {students.map((student) => (
-                      <tr key={student.id} className="hover:bg-muted/30 transition-colors">
+                      <tr key={student.studentUserId} className="hover:bg-muted/30 transition-colors">
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="flex items-center">
                             <div>
@@ -616,18 +616,17 @@ const AssignmentView = () => {
                               >
                                 View
                               </CustomButton>
-                              {/* Changed onClick to call the new handleDownloadPlagiarismPdf */}
                               <CustomButton
                                 variant="outline"
                                 size="sm"
                                 icon={<Download className="h-3.5 w-3.5" />}
                                 onClick={() => handleDownloadPlagiarismPdf(
-                                  student.id, // Pass submission ID
+                                  student.studentUserId,
                                   student.name,
                                   assignment.title
                                 )}
-                                loading={isGeneratingPdf} // Use the new loading state
-                                disabled={isGeneratingPdf} // Disable while downloading
+                                loading={isGeneratingPdf}
+                                disabled={isGeneratingPdf}
                               >
                                 {isGeneratingPdf ? 'Downloading...' : 'Download'}
                               </CustomButton>
@@ -657,11 +656,7 @@ const AssignmentView = () => {
           assignmentTitle={assignment.title}
           assignmentType={assignment.type}
           onClose={() => setShowReportModal(false)}
-          // Pass the new download function to the modal if you want a download button there
-          // Note: The modal's internal `onDownloadReport` might need a slight adjustment
-          // or you can just remove the download button from the modal if the main table row is sufficient.
-          // For now, I'll update it to pass the new function.
-          onDownloadReport={() => handleDownloadPlagiarismPdf(selectedStudentForReport.id, selectedStudentForReport.name, assignment.title)}
+          onDownloadReport={() => handleDownloadPlagiarismPdf(selectedStudentForReport.studentUserId, selectedStudentForReport.name, assignment.title)}
           isGeneratingPdf={isGeneratingPdf}
         />
       )}
