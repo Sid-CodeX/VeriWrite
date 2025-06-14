@@ -14,7 +14,7 @@ const router = express.Router();
 router.post("/signup", async (req, res) => {
     try {
         const { name, email, password, role } = req.body;
-        const emailLower = email.toLowerCase();  
+        const emailLower = email.toLowerCase();
 
         if (await User.findOne({ email: emailLower })) {
             return res.status(400).json({ error: "Email already in use" });
@@ -24,8 +24,27 @@ router.post("/signup", async (req, res) => {
         const newUser = new User({ name, email: emailLower, password: hashedPassword, role });
         await newUser.save();
 
-        res.status(201).json({ message: "User registered successfully!" });
+        // --- NEW: Generate JWT token for the newly registered user ---
+        const token = jwt.sign(
+            { userId: newUser._id, role: newUser.role },
+            process.env.JWT_SECRET,
+            { expiresIn: "1d" }
+        );
+
+        // --- NEW: Return the token and user data, similar to login ---
+        res.status(201).json({
+            message: "User registered successfully!",
+            token,
+            user: {
+                _id: newUser._id, // Include _id for frontend's User interface 'id'
+                name: newUser.name,
+                email: newUser.email,
+                role: newUser.role,
+            },
+        });
+
     } catch (error) {
+        console.error("Signup Error:", error); // Log the error for debugging
         res.status(500).json({ error: "Internal Server Error" });
     }
 });
