@@ -2,14 +2,13 @@ import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Calendar, Users, ArrowLeft, FileText, Download, Eye, BarChart } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { usePdfGenerator } from '@/hooks/usePdfGenerator';
 
 import Navbar from '@/components/Navbar';
 import CustomButton from '@/components/ui/CustomButton';
 import GlassmorphismCard from '@/components/ui/GlassmorphismCard';
 import Footer from '@/components/Footer';
-import PlagiarismReportModal from '@/components/PlagiarismReportModal'; // Existing plagiarism report modal
-import ExtractedTextModal from '@/components/ExtractedTextModal'; // New extracted text modal
+import PlagiarismReportModal from '@/components/PlagiarismReportModal';
+import ExtractedTextModal from '@/components/ExtractedTextModal';
 import { format } from 'date-fns';
 
 // --- Interfaces (Consider moving these to a shared types file like src/types/assignment.ts) ---
@@ -22,7 +21,8 @@ interface MatchDetail {
 }
 
 interface StudentSubmissionBackend {
-  studentId: string; // Ensure this is mapped to Student.id
+  _id: string; // Added: The submission's unique ID
+  studentId: string; // ID of the student
   name: string;
   email: string;
   status: "Submitted" | "Pending";
@@ -52,7 +52,7 @@ interface StudentSubmissionBackend {
 }
 
 interface Student {
-  id: string;
+  id: string; // This will now correctly hold the submission ID
   name: string;
   email: string;
   submissionDate: Date | null;
@@ -135,8 +135,7 @@ const AssignmentView = () => {
   const [selectedStudentForExtractedText, setSelectedStudentForExtractedText] = useState<Student | null>(null); // For extracted text view
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  const { isGeneratingPdf, handleDownloadPdf } = usePdfGenerator();
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false); // New state for PDF generation loading
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -203,21 +202,21 @@ const AssignmentView = () => {
       });
 
       const mappedStudents: Student[] = data.studentSubmissions.map((sub: StudentSubmissionBackend) => ({
-        id: sub.studentId ? String(sub.studentId) : 'invalid_id', // Fallback for safety if studentId is literally null/undefined
+        id: sub._id, // Corrected: Use sub._id for the submission ID
         name: sub.name,
         email: sub.email,
         submissionDate: sub.submittedDate ? new Date(sub.submittedDate) : null,
         documentName: sub.fileName,
         plagiarismScore: typeof sub.plagiarismPercent === 'number' ? sub.plagiarismPercent : null,
-        reportGenerated: sub.isChecked, // Already mapped from backend's isChecked
-        extractedText: sub.extractedText, // Now consistently available from this initial fetch
+        reportGenerated: sub.isChecked,
+        extractedText: sub.extractedText,
         wordCount: sub.wordCount,
         topMatches: sub.topMatches || [],
         allMatches: sub.allMatches || [],
       }));
       setStudents(mappedStudents);
 
-    } catch (err: any) {
+    } catch (err) {
       console.error("Error fetching assignment details:", err);
       setError(err.message || "An unexpected error occurred.");
       toast({
@@ -292,7 +291,7 @@ const AssignmentView = () => {
 
       await fetchAssignmentDetails(); // Re-fetch to get updated plagiarism percentages and flags
 
-    } catch (err: any) {
+    } catch (err) {
       console.error("Error during plagiarism check:", err);
       setError(err.message || "An unexpected error occurred during plagiarism check.");
       toast({
@@ -304,6 +303,72 @@ const AssignmentView = () => {
       setIsCheckingAllPlagiarism(false);
     }
   };
+
+  // NEW handleDownloadPdf function to call backend API
+  const handleDownloadPlagiarismPdf = async (submissionId: string, studentName: string, assignmentTitle: string) => {
+    setIsGeneratingPdf(true);
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error("Authentication token not found. Please log in.");
+      }
+
+      toast({
+        title: "Generating PDF...",
+        description: "Your plagiarism report is being generated and will download shortly.",
+        variant: "default",
+      });
+
+      const response = await fetch(`/api/plagiarism-reports/${submissionId}/download`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: response.statusText }));
+        throw new Error(`Failed to download report: ${errorData.message || response.statusText}`);
+      }
+
+      // Get the filename from Content-Disposition header, or use a default
+      const contentDisposition = response.headers.get('Content-Disposition');
+      let filename = `plagiarism_report_${studentName.replace(/\s/g, '_')}_${assignmentTitle.replace(/\s/g, '_')}.pdf`;
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename="([^"]+)"/);
+        if (filenameMatch && filenameMatch[1]) {
+          filename = filenameMatch[1];
+        }
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+
+      toast({
+        title: "Download Complete",
+        description: "Plagiarism report downloaded successfully!",
+        variant: "success",
+      });
+
+    } catch (err) {
+      console.error("Error downloading PDF:", err);
+      toast({
+        title: "Download Failed",
+        description: err.message || "Failed to download plagiarism report.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGeneratingPdf(false);
+    }
+  };
+
 
   // Handler for viewing the full plagiarism report
   const handleViewReport = (student: Student) => {
@@ -526,7 +591,6 @@ const AssignmentView = () => {
                             <CustomButton
                               variant="link"
                               size="sm"
-                              // Call the new handler for extracted text
                               onClick={() => handleViewExtractedText(student)}
                               className="p-0 h-auto text-sm"
                             >
@@ -552,22 +616,23 @@ const AssignmentView = () => {
                               >
                                 View
                               </CustomButton>
+                              {/* Changed onClick to call the new handleDownloadPlagiarismPdf */}
                               <CustomButton
                                 variant="outline"
                                 size="sm"
                                 icon={<Download className="h-3.5 w-3.5" />}
-                                onClick={() => handleDownloadPdf({
-                                  filename: `plagiarism_report_${student.name.replace(/\s/g, '_')}_${assignment.title.replace(/\s/g, '_')}.pdf`,
-                                  elementId: 'plagiarism-report-content',
-                                  studentName: student.name,
-                                  assignmentTitle: assignment.title,
-                                })}
+                                onClick={() => handleDownloadPlagiarismPdf(
+                                  student.id, // Pass submission ID
+                                  student.name,
+                                  assignment.title
+                                )}
+                                loading={isGeneratingPdf} // Use the new loading state
+                                disabled={isGeneratingPdf} // Disable while downloading
                               >
-                                Download
+                                {isGeneratingPdf ? 'Downloading...' : 'Download'}
                               </CustomButton>
                             </div>
                           ) : (
-                            // Display "Report pending" if submitted but not checked, or "Not submitted" if no submission
                             student.submissionDate ? (
                                 <span className="text-xs text-muted-foreground">Report pending</span>
                             ) : (
@@ -592,7 +657,11 @@ const AssignmentView = () => {
           assignmentTitle={assignment.title}
           assignmentType={assignment.type}
           onClose={() => setShowReportModal(false)}
-          onDownloadReport={handleDownloadPdf}
+          // Pass the new download function to the modal if you want a download button there
+          // Note: The modal's internal `onDownloadReport` might need a slight adjustment
+          // or you can just remove the download button from the modal if the main table row is sufficient.
+          // For now, I'll update it to pass the new function.
+          onDownloadReport={() => handleDownloadPlagiarismPdf(selectedStudentForReport.id, selectedStudentForReport.name, assignment.title)}
           isGeneratingPdf={isGeneratingPdf}
         />
       )}
