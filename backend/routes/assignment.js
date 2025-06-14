@@ -388,70 +388,95 @@ router.post("/check-plagiarism/:assignmentId", authenticate, requireTeacher, asy
 });
 
 // GET /view-report/:assignmentId/:studentId
+// GET /view-report/:assignmentId/:studentId
 router.get("/view-report/:assignmentId/:studentId", authenticate, requireTeacher, async (req, res) => {
-  const { assignmentId, studentId } = req.params;
+    const { assignmentId, studentId } = req.params;
 
-  try {
-    // Populate classroom students to ensure we have student names/emails for original submissions if needed later
-    const assignment = await Assignment.findById(assignmentId).populate("classroomId", "name students");
+    try {
+        // Find the assignment. No need to populate classroom here, as student details will be fetched directly from User model.
+        const assignment = await Assignment.findById(assignmentId);
+        if (!assignment) {
+            return res.status(404).json({ error: "Assignment not found" });
+        }
 
-    if (!assignment) {
-      return res.status(404).json({ error: "Assignment not found" });
-    }
+        const submission = assignment.submissions.find((sub) => sub.studentId.toString() === studentId.toString());
+        if (!submission || !submission.submitted) {
+            return res.status(404).json({ error: "Submission not found or not submitted" });
+        }
 
-    const submission = assignment.submissions.find((sub) => sub.studentId.toString() === studentId.toString());
+        // --- Solution 1: Fetch latest details for the main student ---
+        const mainStudentUser = await User.findById(studentId).select('name email').lean();
+        const mainStudentName = mainStudentUser ? mainStudentUser.name : submission.name || 'Unknown Student';
+        const mainStudentEmail = mainStudentUser ? mainStudentUser.email : submission.email || 'Unknown Email';
 
-    if (!submission || !submission.submitted) {
-      return res.status(404).json({ error: "Submission not found or not submitted" });
-    }
+        // --- Solution 2: Aggregate all unique matched student IDs to avoid N+1 queries ---
+        const uniqueMatchedStudentIds = new Set();
 
-    // Enhance allMatches with names/emails by querying User model
-    const allMatchesWithNames = await Promise.all(
-        (submission.allMatches || []).map(async (match) => {
+        // Add IDs from topMatches
+        (submission.topMatches || []).forEach(match => {
             if (match.matchedStudentId) {
-                const matchedUser = await User.findById(match.matchedStudentId).select('name email').lean();
-                return {
-                    ...match,
-                    name: matchedUser ? matchedUser.name : 'Unknown',
-                    email: matchedUser ? matchedUser.email : 'Unknown',
-                };
+                uniqueMatchedStudentIds.add(match.matchedStudentId.toString());
             }
-            return match;
-        })
-    );
+        });
 
-    // For topMatches, directly use the stored matchedText, and fetch name/email from User model
-    const topMatchesWithDetails = await Promise.all(
-        (submission.topMatches || []).map(async (match) => {
+        // Add IDs from allMatches
+        (submission.allMatches || []).forEach(match => {
             if (match.matchedStudentId) {
-                const matchedUser = await User.findById(match.matchedStudentId).select('name email').lean();
-                return {
-                    ...match,
-                    name: matchedUser ? matchedUser.name : 'Unknown',
-                    email: matchedUser ? matchedUser.email : 'Unknown',
-                    // matchedText is already in match, as populated by check-plagiarism route
-                };
+                uniqueMatchedStudentIds.add(match.matchedStudentId.toString());
             }
-            return match;
-        })
-    );
+        });
 
+        // Fetch all unique matched users in a single database query
+        let matchedUsersMap = new Map();
+        if (uniqueMatchedStudentIds.size > 0) {
+            const users = await User.find({ _id: { $in: Array.from(uniqueMatchedStudentIds) } }).select('name email').lean();
+            users.forEach(user => {
+                matchedUsersMap.set(user._id.toString(), { name: user.name, email: user.email });
+            });
+        }
 
-    res.json({
-      studentId: submission.studentId,
-      name: submission.name,
-      email: submission.email,
-      wordCount: submission.wordCount,
-      plagiarismPercent: submission.plagiarismPercent ?? 0,
-      topMatches: topMatchesWithDetails, 
-      allMatches: allMatchesWithNames,  
-      extractedText: submission.extractedText,
-    });
-  } catch (err) {
-    console.error("Error fetching plagiarism report:", err);
-    res.status(500).json({ error: "Server error" });
-  }
+        // --- Solution 3: Populate names and emails for both topMatches and allMatches using the map ---
+
+        // Populate topMatches with name and email
+        const topMatchesWithDetails = (submission.topMatches || []).map(match => {
+            const userDetails = matchedUsersMap.get(match.matchedStudentId.toString());
+            return {
+                matchedStudentId: match.matchedStudentId,
+                matchedText: match.matchedText, // This field is already correctly stored from check-plagiarism
+                plagiarismPercent: match.plagiarismPercent,
+                name: userDetails ? userDetails.name : 'Unknown', // Populate name
+                email: userDetails ? userDetails.email : 'Unknown', // Populate email
+            };
+        });
+
+        // Populate allMatches with name and email (no matchedText expected by frontend)
+        const allMatchesWithNames = (submission.allMatches || []).map(match => {
+            const userDetails = matchedUsersMap.get(match.matchedStudentId.toString());
+            return {
+                matchedStudentId: match.matchedStudentId,
+                plagiarismPercent: match.plagiarismPercent,
+                name: userDetails ? userDetails.name : 'Unknown', // Populate name
+                email: userDetails ? userDetails.email : 'Unknown', // Populate email
+            };
+        });
+
+        // Respond with the compiled data
+        res.json({
+            studentId: studentId,
+            name: mainStudentName, // Use the latest name
+            email: mainStudentEmail, // Use the latest email
+            wordCount: submission.wordCount,
+            plagiarismPercent: submission.plagiarismPercent ?? 0,
+            topMatches: topMatchesWithDetails,
+            allMatches: allMatchesWithNames,
+            extractedText: submission.extractedText,
+        });
+    } catch (err) {
+        console.error("Error fetching plagiarism report:", err);
+        res.status(500).json({ error: "Server error" });
+    }
 });
+
 
 // DELETE /delete/:assignmentId
 router.delete("/delete/:assignmentId", authenticate, requireTeacher, async (req, res) => {
@@ -492,6 +517,46 @@ router.delete("/delete/:assignmentId", authenticate, requireTeacher, async (req,
   } catch (error) {
     console.error("Error deleting assignment:", error);
     res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// GET /view-extracted-text/:assignmentId/:studentId
+router.get("/view-extracted-text/:assignmentId/:studentId", authenticate, requireTeacher, async (req, res) => {
+  const { assignmentId, studentId } = req.params;
+
+  try {
+    const assignment = await Assignment.findById(assignmentId);
+    if (!assignment) {
+      return res.status(404).json({ error: "Assignment not found" });
+    }
+
+    const submission = assignment.submissions.find((sub) => sub.studentId.toString() === studentId.toString());
+    if (!submission || !submission.submitted) {
+      return res.status(404).json({ error: "Submission not found or not submitted" });
+    }
+
+    if (!submission.extractedText) {
+      return res.status(404).json({ error: "No extracted text available for this submission." });
+    }
+
+    // You can fetch student name and email if needed for the view, similar to view-report
+    const studentUser = await User.findById(studentId).select('name email').lean();
+    const studentName = studentUser ? studentUser.name : submission.name || 'Unknown Student';
+    const studentEmail = studentUser ? studentUser.email : submission.email || 'Unknown Email';
+
+
+    res.json({
+      assignmentTitle: assignment.title,
+      studentName: studentName,
+      studentEmail: studentEmail,
+      fileName: submission.fileName,
+      extractedText: submission.extractedText,
+      submittedAt: submission.submittedAt
+    });
+
+  } catch (err) {
+    console.error("Error fetching extracted text:", err);
+    res.status(500).json({ error: "Server error" });
   }
 });
 
