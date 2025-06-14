@@ -6,7 +6,8 @@ import { format } from 'date-fns';
 
 // Define interface for the student data needed by this modal
 interface StudentForExtractedTextModal {
-  id: string;
+  // id: string; // REMOVED: No longer needed, as AssignmentView.tsx passes studentUserId
+  studentUserId: string; // ADDED: To match the Student interface in AssignmentView.tsx
   name: string;
   email: string;
   documentName: string | null;
@@ -31,16 +32,26 @@ const ExtractedTextModal: React.FC<ExtractedTextModalProps> = ({
     if (text) {
       // document.execCommand('copy') is used for clipboard functionality
       // as navigator.clipboard.writeText() might not work in some iframe environments.
-      const el = document.createElement('textarea');
-      el.value = text;
-      document.body.appendChild(el);
-      el.select();
-      document.execCommand('copy');
-      document.body.removeChild(el);
-
-      toast({
-        title: "Copied!",
-        description: "Extracted text copied to clipboard.",
+      // Modern approach using navigator.clipboard.writeText is generally preferred
+      // but keeping execCommand for now as per original code.
+      navigator.clipboard.writeText(text).then(() => {
+        toast({
+          title: "Copied!",
+          description: "Extracted text copied to clipboard.",
+        });
+      }).catch(err => {
+        console.error('Failed to copy text using navigator.clipboard:', err);
+        // Fallback to document.execCommand if navigator.clipboard fails (less common in modern browsers)
+        const el = document.createElement('textarea');
+        el.value = text;
+        document.body.appendChild(el);
+        el.select();
+        document.execCommand('copy');
+        document.body.removeChild(el);
+        toast({
+          title: "Copied (Fallback)!",
+          description: "Extracted text copied to clipboard using fallback method.",
+        });
       });
     } else {
       toast({
@@ -74,7 +85,7 @@ const ExtractedTextModal: React.FC<ExtractedTextModalProps> = ({
               <p className="text-muted-foreground"><strong>Assignment:</strong> {assignmentTitle}</p>
               <p className="text-muted-foreground">
                 <strong>Submitted:</strong>{' '}
-                {student.submissionDate ? format(student.submissionDate, 'MMM d, yyyy HH:mm') : 'N/A'}
+                {student.submissionDate ? format(student.submissionDate, 'MMM d,yyyy HH:mm') : 'N/A'}
               </p>
             </div>
             <div className="bg-muted/30 p-4 rounded-lg flex items-center justify-center">
