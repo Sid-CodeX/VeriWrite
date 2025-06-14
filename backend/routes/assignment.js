@@ -189,15 +189,16 @@ router.get("/view/:assignmentId", authenticate, requireTeacher, async (req, res)
     const classSize = assignment.classroomId.students.length;
     const students = assignment.classroomId.students;
 
-    let submitted = 0,
-      checked = 0;
+    let submitted = 0;
+    let checked = 0;
 
     const studentSubmissions = students.map((student) => {
       const submission = assignment.submissions.find(
         (sub) => sub.studentId.toString() === student.studentId.toString()
       );
 
-      if (submission) {
+      // Check if a submission exists AND if it has extracted text or a meaningful file name.
+      if (submission && submission.extractedText) { 
         submitted++;
         const isChecked = submission.plagiarismPercent !== null && submission.plagiarismPercent !== undefined;
         if (isChecked) checked++;
@@ -206,7 +207,7 @@ router.get("/view/:assignmentId", authenticate, requireTeacher, async (req, res)
           studentId: submission.studentId,
           name: student.name,
           email: student.email,
-          status: "Submitted",
+          status: "Submitted", // Only if extractedText exists
           submittedDate: submission.submittedAt,
           fileName: submission.fileName || "Uploaded",
           plagiarismPercent: submission.plagiarismPercent ?? "Not checked",
@@ -216,11 +217,12 @@ router.get("/view/:assignmentId", authenticate, requireTeacher, async (req, res)
           allMatches: submission.allMatches ?? []
         };
       } else {
+        // If no submission or if the submission is incomplete/invalid
         return {
           studentId: student.studentId,
           name: student.name,
           email: student.email,
-          status: "Pending",
+          status: "Pending", // Correctly set to Pending
           submittedDate: null,
           fileName: "No submission",
           plagiarismPercent: "—",
@@ -387,7 +389,6 @@ router.post("/check-plagiarism/:assignmentId", authenticate, requireTeacher, asy
   }
 });
 
-// GET /view-report/:assignmentId/:studentId
 // GET /view-report/:assignmentId/:studentId
 router.get("/view-report/:assignmentId/:studentId", authenticate, requireTeacher, async (req, res) => {
     const { assignmentId, studentId } = req.params;
