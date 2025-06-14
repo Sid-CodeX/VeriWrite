@@ -1,32 +1,20 @@
 const express = require("express");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-const fs = require("fs").promises;  
+const fs = require("fs").promises;
 const User = require("../models/User");
-const OCRuploadcheck = require("../models/OCRuploadcheck"); 
+const OCRuploadcheck = require("../models/OCRuploadcheck");
 require("dotenv").config();
 
+const { authenticate } = require("../middleware/auth");
+const OCRonlinecheck = require("../models/OCRonlinecheck");
 const router = express.Router();
 
-// Middleware to verify JWT token
-const authenticateToken = (req, res, next) => {
-    const token = req.header("Authorization");
-    if (!token) return res.status(401).json({ error: "Access denied. No token provided." });
-
-    try {
-        const decoded = jwt.verify(token.split(" ")[1], process.env.JWT_SECRET);
-        req.user = decoded;
-        next();
-    } catch (error) {
-        res.status(403).json({ error: "Invalid or expired token." });
-    }
-};
-
-//  User Signup
+// User Signup
 router.post("/signup", async (req, res) => {
     try {
         const { name, email, password, role } = req.body;
-        const emailLower = email.toLowerCase();  // ✅ Fix 4: Convert to lowercase
+        const emailLower = email.toLowerCase();  
 
         if (await User.findOne({ email: emailLower })) {
             return res.status(400).json({ error: "Email already in use" });
@@ -42,11 +30,11 @@ router.post("/signup", async (req, res) => {
     }
 });
 
-// User Login (JWT-based)
+// User Login
 router.post("/login", async (req, res) => {
     try {
         const { email, password } = req.body;
-        const emailLower = email.toLowerCase();  // ✅ Fix 4: Convert to lowercase
+        const emailLower = email.toLowerCase();  
         const user = await User.findOne({ email: emailLower });
 
         if (!user || !(await bcrypt.compare(password, user.password))) {
@@ -62,16 +50,17 @@ router.post("/login", async (req, res) => {
 });
 
 // Logout & Cleanup
-router.post("/logout", authenticateToken, async (req, res) => {
+router.post("/logout", authenticate, async (req, res) => {
     try {
-        const teacherId = req.user.userId;  // ✅ Fix 3: Correct teacherId
+        const teacherId = req.userId;  
         const reportPath = `temp/reports/plagiarism_report_${teacherId}.pdf`;
 
         // Delete the report file if it exists
-        await fs.unlink(reportPath).catch(() => {});
+        await fs.unlink(reportPath).catch(() => { });
 
         // Also delete extracted text entries from DB
         await OCRuploadcheck.deleteMany({ teacherId });
+        await OCRonlinecheck.deleteMany({ teacherId });
 
         res.status(200).json({ message: "Logged out successfully, report deleted" });
     } catch (error) {
@@ -81,10 +70,10 @@ router.post("/logout", authenticateToken, async (req, res) => {
 });
 
 // Profile Update
-router.put("/profile", authenticateToken, async (req, res) => {
+router.put("/profile", authenticate, async (req, res) => {
     try {
         const { name } = req.body;
-        const user = await User.findByIdAndUpdate(req.user.userId, { name }, { new: true });
+        const user = await User.findByIdAndUpdate(req.userId, { name }, { new: true });
 
         if (!user) return res.status(404).json({ error: "User not found" });
 
@@ -95,10 +84,10 @@ router.put("/profile", authenticateToken, async (req, res) => {
 });
 
 // Change Password
-router.put("/change-password", authenticateToken, async (req, res) => {
+router.put("/change-password", authenticate, async (req, res) => {
     try {
         const { currentPassword, newPassword } = req.body;
-        const user = await User.findById(req.user.userId);
+        const user = await User.findById(req.userId);
 
         if (!user || !(await bcrypt.compare(currentPassword, user.password))) {
             return res.status(400).json({ error: "Incorrect current password" });
