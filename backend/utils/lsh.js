@@ -1,70 +1,68 @@
-const { createHash } = require('crypto'); // For consistent band hashing
-const { NUM_PERMUTATIONS } = require('./minhash'); // Import NUM_PERMUTATIONS for consistency
+const { createHash } = require('crypto');
+const { NUM_PERMUTATIONS } = require('./minhash');
 
-// --- Configuration Parameters ---
-const NUM_BANDS = 32; // Number of bands to divide the signature into
-const ROWS_PER_BAND = NUM_PERMUTATIONS / NUM_BANDS; // Number of rows (hash values) per band
+const NUM_BANDS = NUM_PERMUTATIONS;
+const ROWS_PER_BAND = 1;
 
-// Ensure parameters are consistent
+// Validate LSH configuration
 if (NUM_PERMUTATIONS % NUM_BANDS !== 0) {
-    console.error("LSH Configuration Error: NUM_PERMUTATIONS must be perfectly divisible by NUM_BANDS.");
-    process.exit(1); // Exit or throw error if configuration is invalid
+    console.error("LSH Configuration Error: NUM_PERMUTATIONS must be divisible by NUM_BANDS.");
+    process.exit(1);
 }
 
-// Function to get LSH buckets
-// Takes an array of objects: [{ submissionId, signature }, ...]
+/*
+ * Groups submissions into LSH buckets.
+ * Submissions with the same band hash go into the same bucket,
+ * indicating they are potential plagiarism candidates.
+ *
+ * @param {Array<{submissionId: string, signature: number[]}>} signaturesWithIds
+ * @returns {Map<string, string[]>} Map of bucketKey → array of submission IDs
+ */
 function getLSHBuckets(signaturesWithIds) {
-    const buckets = new Map(); // Map: bandIndex_bucketKey -> [submissionId1, submissionId2, ...]
+    const buckets = new Map();
 
     for (const { submissionId, signature } of signaturesWithIds) {
         for (let b = 0; b < NUM_BANDS; b++) {
-            const startIndex = b * ROWS_PER_BAND;
-            const endIndex = startIndex + ROWS_PER_BAND;
-            const band = signature.slice(startIndex, endIndex);
+            const band = signature.slice(b, b + ROWS_PER_BAND); // Extract one hash per band
+            const bandKey = createHash('md5')
+                .update(JSON.stringify(band))
+                .digest('hex');                  // Hash the band to get a unique bucket key
+            const bucketKey = `${b}-${bandKey}`; // Combine band index for uniqueness
 
-            // Hash the band to create a unique key for the bucket
-            // Using JSON.stringify ensures consistent hashing for identical arrays
-            const bandKey = createHash('md5').update(JSON.stringify(band)).digest('hex');
-
-            // Create a unique identifier for this bucket within this band
-            const bucketIdentifier = `${b}-${bandKey}`;
-
-            if (!buckets.has(bucketIdentifier)) {
-                buckets.set(bucketIdentifier, []);
+            if (!buckets.has(bucketKey)) {
+                buckets.set(bucketKey, []);
             }
-            buckets.get(bucketIdentifier).push(submissionId);
+            buckets.get(bucketKey).push(submissionId);
         }
     }
+
     return buckets;
 }
 
-// Function to find candidate pairs from the LSH buckets
-// Returns an array of arrays: [[id1, id2], [id3, id4], ...]
+/*
+ * Identifies unique candidate pairs from LSH buckets.
+ * Any two submissions in the same bucket are treated as potential matches.
+ *
+ * @param {Array<{submissionId: string, signature: number[]}>} signaturesWithIds
+ * @returns {Array<[string, string]>} Array of unique candidate ID pairs
+ */
 function findCandidatePairs(signaturesWithIds) {
     const buckets = getLSHBuckets(signaturesWithIds);
-    const candidatePairs = new Set(); // Using a Set to store unique pairs (e.g., "id1-id2")
+    const candidatePairs = new Set();
 
-    for (const [bucketIdentifier, submissionIdsInBucket] of buckets.entries()) {
-        if (submissionIdsInBucket.length > 1) {
-            // If there's more than one submission in a bucket, they are candidates
-            // Generate all unique pairs within this bucket
-            for (let i = 0; i < submissionIdsInBucket.length; i++) {
-                for (let j = i + 1; j < submissionIdsInBucket.length; j++) {
-                    // Sort IDs to ensure consistent key (e.g., "id1-id2" always, not "id2-id1")
-                    const id1 = submissionIdsInBucket[i].toString();
-                    const id2 = submissionIdsInBucket[j].toString();
-                    const pairKey = id1 < id2 ? `${id1}-${id2}` : `${id2}-${id1}`;
-                    candidatePairs.add(pairKey);
+    for (const submissionIds of buckets.values()) {
+        if (submissionIds.length > 1) {
+            // Generate all unique pairs in this bucket
+            for (let i = 0; i < submissionIds.length; i++) {
+                for (let j = i + 1; j < submissionIds.length; j++) {
+                    const [id1, id2] = [submissionIds[i], submissionIds[j]].sort();
+                    candidatePairs.add(`${id1}-${id2}`); // Use sorted IDs to avoid duplicates
                 }
             }
         }
     }
-    // Convert the Set of string keys back to an array of ID arrays
-    return Array.from(candidatePairs).map(key => key.split('-'));
+    // Convert "id1-id2" back to [id1, id2]
+    return Array.from(candidatePairs).map(pair => pair.split('-'));
 }
 
-module.exports = {
-  findCandidatePairs,
-  NUM_BANDS,
-  ROWS_PER_BAND,
-};
+module.exports = { findCandidatePairs, NUM_BANDS, ROWS_PER_BAND };
