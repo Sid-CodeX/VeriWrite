@@ -2,14 +2,24 @@ import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Calendar, Users, ArrowLeft, FileText, Download, Eye, BarChart } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { usePdfGenerator } from '@/hooks/usePdfGenerator'; // Import the new hook
+import { usePdfGenerator } from '@/hooks/usePdfGenerator';
 
 import Navbar from '@/components/Navbar';
 import CustomButton from '@/components/ui/CustomButton';
 import GlassmorphismCard from '@/components/ui/GlassmorphismCard';
 import Footer from '@/components/Footer';
-import PlagiarismReportModal from '@/components/PlagiarismReportModal'; // Import the new modal component
+import PlagiarismReportModal from '@/components/PlagiarismReportModal'; // Existing plagiarism report modal
+import ExtractedTextModal from '@/components/ExtractedTextModal'; // New extracted text modal
 import { format } from 'date-fns';
+
+// --- Interfaces (Consider moving these to a shared types file like src/types/assignment.ts) ---
+interface MatchDetail {
+  matchedStudentId: string;
+  matchedText: string;
+  plagiarismPercent: number;
+  name?: string;
+  email?: string;
+}
 
 interface StudentSubmissionBackend {
   studentId: string; // Ensure this is mapped to Student.id
@@ -22,7 +32,7 @@ interface StudentSubmissionBackend {
   extractedText: string | null;
   plagiarismPercent: number | string;
   wordCount: number;
-  isChecked: boolean;
+  isChecked: boolean; // Indicates if plagiarism check has been run and results are available
   late: boolean;
   teacherRemark: string;
   minHashSignature: number[];
@@ -48,7 +58,7 @@ interface Student {
   submissionDate: Date | null;
   documentName: string | null;
   plagiarismScore: number | null;
-  reportGenerated: boolean;
+  reportGenerated: boolean; // Based on isChecked from backend
   extractedText: string | null;
   wordCount: number;
   topMatches: {
@@ -79,6 +89,7 @@ interface Course {
   name: string;
 }
 
+// Component to display plagiarism score badge
 const PlagiarismBadge: React.FC<{ score: number | null | string }> = ({ score }) => {
   if (score === null || score === "Not checked" || score === "—") {
     return <span className="text-xs text-muted-foreground">Not checked</span>;
@@ -119,7 +130,9 @@ const AssignmentView = () => {
   const [students, setStudents] = useState<Student[]>([]);
   const [isCheckingAllPlagiarism, setIsCheckingAllPlagiarism] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
-  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+  const [selectedStudentForReport, setSelectedStudentForReport] = useState<Student | null>(null); // For plagiarism report
+  const [showExtractedTextModal, setShowExtractedTextModal] = useState(false);
+  const [selectedStudentForExtractedText, setSelectedStudentForExtractedText] = useState<Student | null>(null); // For extracted text view
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -196,8 +209,8 @@ const AssignmentView = () => {
         submissionDate: sub.submittedDate ? new Date(sub.submittedDate) : null,
         documentName: sub.fileName,
         plagiarismScore: typeof sub.plagiarismPercent === 'number' ? sub.plagiarismPercent : null,
-        reportGenerated: sub.isChecked,
-        extractedText: sub.extractedText,
+        reportGenerated: sub.isChecked, // Already mapped from backend's isChecked
+        extractedText: sub.extractedText, // Now consistently available from this initial fetch
         wordCount: sub.wordCount,
         topMatches: sub.topMatches || [],
         allMatches: sub.allMatches || [],
@@ -277,7 +290,7 @@ const AssignmentView = () => {
         variant: "success",
       });
 
-      await fetchAssignmentDetails();
+      await fetchAssignmentDetails(); // Re-fetch to get updated plagiarism percentages and flags
 
     } catch (err: any) {
       console.error("Error during plagiarism check:", err);
@@ -292,60 +305,36 @@ const AssignmentView = () => {
     }
   };
 
-  const handleViewReport = async (student: Student) => {
-    try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        throw new Error("Authentication token not found. Please log in.");
-      }
-
-      // Crucial validation: Ensure student.id is a valid-looking MongoDB ObjectId string
-      if (!student.id || student.id.length !== 24 || !/^[0-9a-fA-F]+$/.test(student.id)) {
-        console.error("Invalid student ID for report:", student.id);
-        toast({
-          title: "Error",
-          description: "Cannot view report: Invalid student ID.",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      const response = await fetch(`/api/assignment/view-report/${assignmentId}/${student.id}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ message: response.statusText }));
-        throw new Error(errorData.error || errorData.message || "Failed to fetch plagiarism report.");
-      }
-
-      const reportData = await response.json();
-
-      const studentWithReport: Student = {
-        ...student,
-        plagiarismScore: reportData.plagiarismPercent,
-        extractedText: reportData.extractedText,
-        wordCount: reportData.wordCount,
-        topMatches: reportData.topMatches,
-        allMatches: reportData.allMatches,
-        reportGenerated: true,
-      };
-
-      setSelectedStudent(studentWithReport);
-      setShowReportModal(true);
-    } catch (err: any) {
-      console.error("Error fetching plagiarism report:", err);
+  // Handler for viewing the full plagiarism report
+  const handleViewReport = (student: Student) => {
+    // Check if the report is actually generated before opening the modal
+    if (!student.reportGenerated) {
       toast({
-        title: "Error",
-        description: err.message || "Failed to load plagiarism report.",
-        variant: "destructive",
+        title: "Report Not Available",
+        description: "Plagiarism report has not been generated for this student yet.",
+        variant: "info",
       });
+      return;
     }
+    setSelectedStudentForReport(student);
+    setShowReportModal(true);
   };
+
+  // Handler for viewing just the extracted text
+  const handleViewExtractedText = (student: Student) => {
+    // Only allow viewing extracted text if a submission exists and text was extracted.
+    if (!student.submissionDate || !student.extractedText) {
+      toast({
+        title: "No Submission",
+        description: "This student has not submitted an assignment or text could not be extracted.",
+        variant: "info",
+      });
+      return;
+    }
+    setSelectedStudentForExtractedText(student);
+    setShowExtractedTextModal(true);
+  };
+
 
   if (loading) {
     return (
@@ -532,11 +521,13 @@ const AssignmentView = () => {
                           )}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
+                          {/* Conditional rendering for "Submission" (file name) link */}
                           {student.documentName && student.documentName !== "No submission" ? (
                             <CustomButton
                               variant="link"
                               size="sm"
-                              onClick={() => handleViewReport(student)}
+                              // Call the new handler for extracted text
+                              onClick={() => handleViewExtractedText(student)}
                               className="p-0 h-auto text-sm"
                             >
                               <FileText className="h-4 w-4 mr-1.5 text-muted-foreground" />
@@ -550,36 +541,38 @@ const AssignmentView = () => {
                           <PlagiarismBadge score={student.plagiarismScore} />
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                          {student.submissionDate ? (
-                            student.reportGenerated ? (
-                              <div className="flex justify-end gap-2">
-                                <CustomButton
-                                  variant="outline"
-                                  size="sm"
-                                  icon={<Eye className="h-3.5 w-3.5" />}
-                                  onClick={() => handleViewReport(student)}
-                                >
-                                  View
-                                </CustomButton>
-                                <CustomButton
-                                  variant="outline"
-                                  size="sm"
-                                  icon={<Download className="h-3.5 w-3.5" />}
-                                  onClick={() => handleDownloadPdf({
-                                    filename: `plagiarism_report_${student.name.replace(/\s/g, '_')}_${assignment.title.replace(/\s/g, '_')}.pdf`,
-                                    elementId: 'plagiarism-report-content',
-                                    studentName: student.name,
-                                    assignmentTitle: assignment.title,
-                                  })}
-                                >
-                                  Download
-                                </CustomButton>
-                              </div>
-                            ) : (
-                              <span className="text-xs text-muted-foreground">Report pending</span>
-                            )
+                          {/* Conditional rendering for "Actions" (View/Download plagiarism report buttons) */}
+                          {student.submissionDate && student.reportGenerated ? (
+                            <div className="flex justify-end gap-2">
+                              <CustomButton
+                                variant="outline"
+                                size="sm"
+                                icon={<Eye className="h-3.5 w-3.5" />}
+                                onClick={() => handleViewReport(student)}
+                              >
+                                View
+                              </CustomButton>
+                              <CustomButton
+                                variant="outline"
+                                size="sm"
+                                icon={<Download className="h-3.5 w-3.5" />}
+                                onClick={() => handleDownloadPdf({
+                                  filename: `plagiarism_report_${student.name.replace(/\s/g, '_')}_${assignment.title.replace(/\s/g, '_')}.pdf`,
+                                  elementId: 'plagiarism-report-content',
+                                  studentName: student.name,
+                                  assignmentTitle: assignment.title,
+                                })}
+                              >
+                                Download
+                              </CustomButton>
+                            </div>
                           ) : (
-                            <span className="text-xs text-muted-foreground italic">No action available</span>
+                            // Display "Report pending" if submitted but not checked, or "Not submitted" if no submission
+                            student.submissionDate ? (
+                                <span className="text-xs text-muted-foreground">Report pending</span>
+                            ) : (
+                                <span className="text-xs text-muted-foreground italic">Not submitted</span>
+                            )
                           )}
                         </td>
                       </tr>
@@ -592,14 +585,24 @@ const AssignmentView = () => {
         </div>
       </main>
 
-      {showReportModal && selectedStudent && assignment && (
+      {/* Conditional rendering for the Plagiarism Report Modal */}
+      {showReportModal && selectedStudentForReport && assignment && (
         <PlagiarismReportModal
-          student={selectedStudent}
+          student={selectedStudentForReport}
           assignmentTitle={assignment.title}
           assignmentType={assignment.type}
           onClose={() => setShowReportModal(false)}
           onDownloadReport={handleDownloadPdf}
           isGeneratingPdf={isGeneratingPdf}
+        />
+      )}
+
+      {/* Conditional rendering for the NEW Extracted Text Modal */}
+      {showExtractedTextModal && selectedStudentForExtractedText && assignment && (
+        <ExtractedTextModal
+          student={selectedStudentForExtractedText}
+          assignmentTitle={assignment.title}
+          onClose={() => setShowExtractedTextModal(false)}
         />
       )}
 
