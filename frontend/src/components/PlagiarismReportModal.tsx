@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Download, Copy, ExternalLink, AlertCircle, BarChart } from 'lucide-react';
+import { X, Download, Copy, ExternalLink, AlertCircle, BarChart, FileText } from 'lucide-react';
 import CustomButton from '@/components/ui/CustomButton';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
@@ -14,7 +14,8 @@ interface MatchDetail {
 }
 
 interface Student {
-  id: string;
+  // id: string; // REMOVED: This was the source of the error.
+  studentUserId: string; // ADDED: To match the Student interface in AssignmentView.tsx
   name: string;
   email: string;
   submissionDate: Date | null;
@@ -37,7 +38,8 @@ interface PlagiarismReportModalProps {
   assignmentTitle: string;
   assignmentType: 'Assignment' | 'Exam';
   onClose: () => void;
-  onDownloadReport: (options: { filename: string; elementId: string; studentName: string; assignmentTitle: string; }) => void;
+  // Simplified onDownloadReport signature as it's now an API call, not dependent on DOM elements
+  onDownloadReport: () => void;
   isGeneratingPdf: boolean;
 }
 
@@ -46,7 +48,7 @@ const PlagiarismReportModal: React.FC<PlagiarismReportModalProps> = ({
   assignmentTitle,
   assignmentType,
   onClose,
-  onDownloadReport,
+  onDownloadReport, // This now expects a function that directly triggers the download
   isGeneratingPdf,
 }) => {
   const { toast } = useToast();
@@ -101,7 +103,7 @@ const PlagiarismReportModal: React.FC<PlagiarismReportModalProps> = ({
             // Add the highlighted match
             newSegments.push(
               <mark
-                key={`${match.matchedStudentId}-${matchStartIndex}`}
+                key={`${match.matchedStudentId}-${matchStartIndex}`} // Use matchedStudentId here
                 title={`Matched with: ${match.name || 'Unknown Student'} (${match.plagiarismPercent}%)`}
                 className="bg-red-300 dark:bg-red-700/50 rounded px-0.5"
               >
@@ -128,7 +130,9 @@ const PlagiarismReportModal: React.FC<PlagiarismReportModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in">
       <div
-        id="plagiarism-report-content" // ID for PDF generation
+        // The ID for PDF generation is now used by the backend, not here.
+        // You can remove this ID unless you have another specific use for it.
+        // id="plagiarism-report-content"
         className="relative w-full max-w-4xl max-h-[90vh] bg-background border border-border rounded-lg shadow-2xl flex flex-col animate-scale-in-content overflow-hidden"
       >
         <div className="flex justify-between items-center p-5 border-b border-border bg-gradient-to-r from-primary/5 to-accent/5">
@@ -156,7 +160,7 @@ const PlagiarismReportModal: React.FC<PlagiarismReportModalProps> = ({
               <p className="text-muted-foreground"><strong>Student:</strong> {student.name}</p>
               <p className="text-muted-foreground"><strong>Email:</strong> {student.email}</p>
               <p className="text-muted-foreground"><strong>Assignment:</strong> {assignmentTitle}</p>
-              <p className="text-muted-foreground"><strong>Submitted:</strong> {student.submissionDate ? format(student.submissionDate, 'MMM d, yyyy HH:mm') : 'N/A'}</p>
+              <p className="text-muted-foreground"><strong>Submitted:</strong> {student.submissionDate ? format(student.submissionDate, 'MMM d,yyyy HH:mm') : 'N/A'}</p>
               <p className="text-muted-foreground"><strong>Document:</strong> {student.documentName || 'N/A'}</p>
               <p className="text-muted-foreground"><strong>Word Count:</strong> {student.wordCount !== null ? student.wordCount : 'N/A'}</p>
             </div>
@@ -186,95 +190,64 @@ const PlagiarismReportModal: React.FC<PlagiarismReportModalProps> = ({
                   <li key={index} className="p-3 bg-card rounded-lg border border-border">
                     <div className="flex justify-between items-center mb-1">
                       <span className="font-medium">
-                        {match.name || `Student ID: ${match.matchedStudentId.substring(0, 8)}...`}
+                        Match with: {match.name || 'Unknown Student'} ({match.email || 'N/A'})
                       </span>
-                      <span className="text-sm font-semibold text-red-600">
-                        {match.plagiarismPercent}% Match
+                      <span className={`font-bold ${getPlagiarismScoreColor(match.plagiarismPercent)}`}>
+                        {match.plagiarismPercent}%
                       </span>
                     </div>
-                    <p className="text-muted-foreground text-xs line-clamp-2">
-                      "{match.matchedText}"
-                    </p>
+                    <div className="bg-muted/50 p-2 rounded text-xs break-words whitespace-pre-wrap max-h-[150px] overflow-y-auto custom-scrollbar">
+                      <p className="font-mono text-muted-foreground">{match.matchedText}</p>
+                    </div>
                   </li>
                 ))}
               </ul>
             ) : (
-              <p className="text-muted-foreground">No significant top matches found or report is pending.</p>
+              <p className="text-muted-foreground">No significant matches found in top results.</p>
             )}
           </div>
 
-          {/* Extracted Text with Highlighting */}
+          {/* Submitted Text with Highlights */}
           <div className="mb-6">
             <h3 className="font-semibold text-lg mb-3 flex items-center">
-              <Copy className="h-5 w-5 mr-2 text-primary" /> Submitted Text
-              <CustomButton
-                variant="ghost"
-                size="sm"
-                className="ml-auto flex items-center gap-1 text-xs"
-                onClick={() => handleCopyText(student.extractedText)}
-                disabled={!student.extractedText}
-              >
-                <Copy className="h-3.5 w-3.5" /> Copy Text
-              </CustomButton>
+              <FileText className="h-5 w-5 mr-2 text-primary" /> Submitted Text
             </h3>
-            <div className="relative bg-card border border-border rounded-lg p-4 font-mono text-sm leading-relaxed whitespace-pre-wrap max-h-96 overflow-y-auto custom-scrollbar">
-              {student.extractedText ? (
-                renderHighlightedText(student.extractedText, student.topMatches)
-              ) : (
-                <p className="text-muted-foreground">No text extracted or available for this submission.</p>
-              )}
-            </div>
+            {student.extractedText ? (
+              <div className="relative bg-muted/30 p-4 rounded-lg border border-border">
+                <div className="absolute top-2 right-2 flex gap-2">
+                  <CustomButton
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => handleCopyText(student.extractedText)}
+                    aria-label="Copy text"
+                  >
+                    <Copy className="h-4 w-4" />
+                  </CustomButton>
+                </div>
+                <div className="text-sm break-words whitespace-pre-wrap max-h-[300px] overflow-y-auto custom-scrollbar pr-10">
+                  {renderHighlightedText(student.extractedText, student.topMatches || [])}
+                </div>
+              </div>
+            ) : (
+              <p className="text-muted-foreground">No extracted text available for this submission.</p>
+            )}
           </div>
-
-          {/* All Matches (Optional: can be made more detailed or hidden by default) */}
-          {student.allMatches && student.allMatches.length > 0 && (
-            <div className="mb-6">
-              <h3 className="font-semibold text-lg mb-3 flex items-center">
-                <BarChart className="h-5 w-5 mr-2 text-primary" /> All Matches Overview
-              </h3>
-              <ul className="space-y-2">
-                {student.allMatches.map((match, index) => (
-                  <li key={index} className="flex justify-between items-center p-2 bg-card rounded-lg border border-border">
-                    <span className="text-sm">
-                      {match.name || `Student ID: ${match.matchedStudentId.substring(0, 8)}...`}
-                    </span>
-                    <span className="text-sm font-semibold text-red-500">
-                      {match.plagiarismPercent}%
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
         </div>
 
-        <div className="flex justify-end gap-4 mt-auto p-5 border-t border-border bg-gradient-to-l from-primary/5 to-accent/5">
+        <div className="flex justify-end p-4 border-t border-border bg-background/90 backdrop-blur-sm gap-3">
           <CustomButton
-            onClick={() => onDownloadReport({
-              filename: `plagiarism_report_${student.name.replace(/\s/g, '_')}_${assignmentTitle.replace(/\s/g, '_')}.pdf`,
-              elementId: 'plagiarism-report-content',
-              studentName: student.name,
-              assignmentTitle: assignmentTitle,
-            })}
-            disabled={isGeneratingPdf}
-            className="flex items-center gap-2 px-6 py-3 rounded-lg"
+            variant="outline"
+            onClick={onClose}
           >
-            {isGeneratingPdf ? (
-              <>
-                <span className="animate-spin mr-2">
-                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg>
-                </span>
-                Generating PDF...
-              </>
-            ) : (
-              <>
-                <Download size={18} /> Download Report
-              </>
-            )}
-          </CustomButton>
-          <CustomButton variant="secondary" onClick={onClose} className="px-6 py-3 rounded-lg">
             Close
+          </CustomButton>
+          <CustomButton
+            icon={<Download className="h-4 w-4" />}
+            onClick={onDownloadReport} // This now triggers the API call from the parent
+            loading={isGeneratingPdf} // Use the prop from parent
+            disabled={isGeneratingPdf} // Disable while downloading
+          >
+            {isGeneratingPdf ? 'Downloading...' : 'Download PDF'}
           </CustomButton>
         </div>
       </div>
