@@ -1,3 +1,4 @@
+// src/context/AuthContext.tsx
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
@@ -5,7 +6,7 @@ import { useToast } from '@/hooks/use-toast';
 export type UserRole = 'teacher' | 'student';
 
 export interface User {
-  id: string; 
+  id: string; // This should ideally be _id if coming from MongoDB
   name: string;
   email: string;
   role: UserRole;
@@ -19,7 +20,7 @@ interface AuthContextType {
   signup: (name: string, email: string, password: string, role: UserRole) => Promise<void>;
   logout: () => void;
   isAuthenticated: boolean;
-  updateProfile: (updatedFields: Partial<User>) => Promise<void>; // Changed type to Partial<User>
+  updateProfile: (updatedFields: Partial<User>) => Promise<void>;
   changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
 }
@@ -40,9 +41,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const savedUser = localStorage.getItem('veriwrite_user');
     const token = localStorage.getItem('token'); // Get token from localStorage
     if (savedUser && token) {
-      // Potentially, you could also verify the token with your backend here
-      // to ensure it's still valid and get the latest user data.
-      // For this example, we'll assume a valid token means valid user data.
       setUser(JSON.parse(savedUser));
     }
     setIsLoading(false);
@@ -57,13 +55,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ email, password, role }), // Ensure backend expects 'role'
+        body: JSON.stringify({ email, password, role }),
       });
 
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || "Login failed"); // Backend sends 'error' key
+        throw new Error(data.error || "Login failed");
       }
 
       const newUser: User = {
@@ -147,46 +145,42 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || "Signup failed"); // Backend sends 'error' key
+        throw new Error(data.error || "Signup failed"); // Backend now returns 'error' key
       }
 
-      // Backend signup doesn't return user and token for direct login after signup,
-      // so if you want to automatically log in the user, you'd need to modify your backend
-      // to return the token and user object, or call the login function here.
-      // For now, we'll just show success and let the user log in.
-      // If you modify backend to return user & token, uncomment/adjust below:
-      /*
+      // --- NEW: Automatically log in the user after successful signup ---
       const newUser: User = {
-        id: data.user._id,
+        id: data.user._id, // Get _id from the backend response
         name: data.user.name,
         email: data.user.email,
         role: data.user.role,
       };
+
       setUser(newUser);
       localStorage.setItem("veriwrite_user", JSON.stringify(newUser));
-      localStorage.setItem("token", data.token);
-      */
+      localStorage.setItem("token", data.token); // Store JWT token
 
       toast({
         title: "Account created successfully",
-        description: `You can now log in with your new account.`,
+        description: `Welcome to VeriWrite, ${name}!`,
       });
 
-      // You might want to redirect to login page instead if not auto-logging in
-      // navigate("/login");
+      navigate(role === "teacher" ? "/classroom" : "/student-dashboard");
     } catch (error) {
       toast({
         title: "Signup failed",
         description: error instanceof Error ? error.message : "Unknown error occurred",
         variant: "destructive",
       });
+      // Re-throw the error so the calling component can handle it if needed
+      throw error;
     } finally {
       setIsLoading(false);
     }
   };
 
 
-  const logout = async () => { // Made async to await backend logout call
+  const logout = async () => {
     setIsLoading(true);
     const token = localStorage.getItem('token');
     try {
@@ -222,7 +216,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
 
-  // Updated function to update user profile with actual API call
   const updateProfile = async (updatedFields: Partial<User>) => {
     setIsLoading(true);
     const token = localStorage.getItem('token');
@@ -241,9 +234,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`, // Send the JWT token
+          "Authorization": `Bearer ${token}`,
         },
-        body: JSON.stringify(updatedFields), // Send the fields to update (e.g., { name: "New Name" })
+        body: JSON.stringify(updatedFields),
       });
 
       const data = await response.json();
@@ -252,13 +245,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         throw new Error(data.error || "Profile update failed");
       }
 
-      // Update the user state and local storage
       const updatedUser: User = {
-        ...user!, // Use non-null assertion as we check for token above, implying user exists
-        ...updatedFields,
-        // The backend `profile` route should return the updated user, ensure `_id` is mapped to `id`
-        // Assuming backend returns { message: "...", user: { _id, name, email, role } }
-        name: data.user.name, // Take name from backend response
+        ...user!,
+        name: data.user.name,
+        email: data.user.email, // Ensure email is also updated if backend allows or keep existing
+        role: data.user.role, // Ensure role is also updated or keep existing
+        id: data.user._id, // Ensure id is consistent
       };
       setUser(updatedUser);
       localStorage.setItem('veriwrite_user', JSON.stringify(updatedUser));
@@ -279,7 +271,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // Updated function to change password with actual API call
+
   const changePassword = async (currentPassword: string, newPassword: string) => {
     setIsLoading(true);
     const token = localStorage.getItem('token');
@@ -298,7 +290,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`, // Send the JWT token
+          "Authorization": `Bearer ${token}`,
         },
         body: JSON.stringify({ currentPassword, newPassword }),
       });
@@ -306,7 +298,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || "Password change failed"); // Backend sends 'error' key
+        throw new Error(data.error || "Password change failed");
       }
 
       toast({
@@ -314,7 +306,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         description: "Your password has been updated.",
       });
 
-      // No need to update user state here as only password changed, not visible user data
       return Promise.resolve();
     } catch (error) {
       toast({
@@ -328,7 +319,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // New function to reset password (for forgot password flow - this still needs a backend route)
+
   const resetPassword = async (email: string) => {
     setIsLoading(true);
     try {
@@ -337,7 +328,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Your backend currently doesn't have a '/reset-password' route that takes just an email.
       // This will need a new backend endpoint.
 
-      // Example placeholder for a future backend route:
       const response = await fetch(`${API_BASE_URL}/api/auth/forgot-password`, { // <--- Needs backend implementation
         method: "POST",
         headers: {
