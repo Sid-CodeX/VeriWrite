@@ -22,7 +22,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   updateProfile: (updatedFields: Partial<User>) => Promise<void>;
   changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
-  resetPassword: (email: string) => Promise<void>;
+  resetPassword: (email: string) => Promise<void>; // Keep this interface, but the implementation will change
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -248,9 +248,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const updatedUser: User = {
         ...user!,
         name: data.user.name,
-        email: data.user.email, // Ensure email is also updated if backend allows or keep existing
-        role: data.user.role, // Ensure role is also updated or keep existing
-        id: data.user._id, // Ensure id is consistent
+        email: data.user.email,
+        role: data.user.role,
+        id: data.user._id,
       };
       setUser(updatedUser);
       localStorage.setItem('veriwrite_user', JSON.stringify(updatedUser));
@@ -320,38 +320,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
 
+  // MODIFIED: resetPassword to just show a toast message
   const resetPassword = async (email: string) => {
     setIsLoading(true);
     try {
-      // NOTE: This assumes you will implement a backend route for "forgot password" flow.
-      // E.g., POST /api/auth/forgot-password that sends an email with a reset link/token.
-      // Your backend currently doesn't have a '/reset-password' route that takes just an email.
-      // This will need a new backend endpoint.
-
-      const response = await fetch(`${API_BASE_URL}/api/auth/forgot-password`, { // <--- Needs backend implementation
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ email }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Password reset request failed");
-      }
+      // Simulate an async operation to allow the loading state to show
+      await new Promise(resolve => setTimeout(resolve, 500));
 
       toast({
-        title: "Password reset email sent",
-        description: `Instructions to reset your password have been sent to ${email}`,
+        title: "Feature Not Available",
+        description: "The password reset feature is not available in the current version. It will be implemented in a future update.",
+        variant: "default", // Or "info" if you have one
       });
 
       return Promise.resolve();
     } catch (error) {
+      // This catch block might not be strictly necessary if no actual API call is made,
+      // but it's good practice to keep for consistent Promise return.
+      console.error("Error in placeholder resetPassword:", error);
       toast({
-        title: "Password reset failed",
-        description: error instanceof Error ? error.message : "Unknown error occurred",
+        title: "Error",
+        description: "An unexpected error occurred with the feature placeholder.",
         variant: "destructive",
       });
       return Promise.reject(error);
@@ -370,7 +359,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     isAuthenticated: !!user,
     updateProfile,
     changePassword,
-    resetPassword,
+    resetPassword, // Keep it in the value, as the function is still defined
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
