@@ -3,12 +3,13 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const fs = require("fs").promises;
 const User = require("../models/User");
-const OCRuploadcheck = require("../models/OCRuploadcheck");
-require("dotenv").config();
-
+const Classroom = require("../models/Classroom"); 
+const Assignment = require("../models/Assignment");
 const { authenticate } = require("../middleware/auth");
 const OCRonlinecheck = require("../models/OCRonlinecheck");
+const OCRuploadcheck = require("../models/OCRuploadcheck");
 const router = express.Router();
+require("dotenv").config();
 
 // User Signup
 router.post("/signup", async (req, res) => {
@@ -91,16 +92,55 @@ router.post("/logout", authenticate, async (req, res) => {
 // Profile Update
 router.put("/profile", authenticate, async (req, res) => {
     try {
-        const { name } = req.body;
-        const user = await User.findByIdAndUpdate(req.userId, { name }, { new: true });
+        const { name } = req.body; 
+        const userId = req.userId;
 
-        if (!user) return res.status(404).json({ error: "User not found" });
+        if (!name || typeof name !== 'string' || name.trim() === '') {
+            return res.status(400).json({ error: "Valid name is required for profile update" });
+        }
 
-        res.json({ message: "Profile updated successfully", user });
+        // 1. Update the User document itself
+        const updatedUser = await User.findByIdAndUpdate(
+            userId,
+            { name: name.trim() }, // Trim whitespace from name
+            { new: true, select: '_id name email role' }
+        );
+
+        if (!updatedUser) {
+            return res.status(404).json({ error: "User not found" });
+        }
+
+        // 2. Update denormalized user data in Classrooms and Assignments
+
+        // Update name in students array of classrooms (if the user is a student)
+        await Classroom.updateMany(
+            { "students.studentId": userId },
+            {
+                $set: {
+                    "students.$[elem].name": updatedUser.name,
+                }
+            },
+            { arrayFilters: [{ "elem.studentId": userId }] }
+        );
+
+        // Update name in submissions array of Assignments (if the user is a student)
+        await Assignment.updateMany(
+            { "submissions.studentId": userId },
+            {
+                $set: {
+                    "submissions.$[elem].name": updatedUser.name,
+                }
+            },
+            { arrayFilters: [{ "elem.studentId": userId }] }
+        );
+
+        res.json({ message: "Profile updated successfully", user: updatedUser });
     } catch (error) {
+        console.error("Profile Update Error:", error);
         res.status(500).json({ error: "Internal Server Error" });
     }
 });
+
 
 // Change Password
 router.put("/change-password", authenticate, async (req, res) => {
