@@ -147,47 +147,84 @@ router.post("/create-assignment", authenticate, requireTeacher, multerErrorHandl
 }
 );
 
-// View Assignment Route
+// View Assignment Route (IMPROVED WITH NESTED POPULATION)
 router.get("/view/:assignmentId", authenticate, requireTeacher, async (req, res) => {
     try {
         const { assignmentId } = req.params;
+
+        // Populate classroomId as before, AND THEN
+        // Populate matchedStudentId within topMatches and allMatches inside submissions
         const assignment = await Assignment.findById(assignmentId)
-            .populate("classroomId", "name students")
-            .lean();
+            .populate("classroomId", "name students") // Populates Classroom data
+            .populate({ // Population for topMatches.matchedStudentId
+                path: 'submissions.topMatches.matchedStudentId',
+                model: 'User', // Explicitly specify the model, though 'ref' in schema is usually enough
+                select: 'name email' // Select only name and email from the User model
+            })
+            .populate({ // Population for allMatches.matchedStudentId
+                path: 'submissions.allMatches.matchedStudentId',
+                model: 'User',
+                select: 'name email'
+            })
+            .lean(); // Use lean() for better performance as you're not modifying Mongoose documents
 
         if (!assignment) {
             return res.status(404).json({ message: "Assignment not found" });
         }
 
         const classSize = assignment.classroomId.students.length;
-        const students = assignment.classroomId.students;
+        const students = assignment.classroomId.students; // These are User _id's with name/email already if populated by Classroom schema
 
         let submitted = 0;
         let checked = 0;
 
         const studentSubmissions = students.map((student) => {
             const submission = assignment.submissions.find(
-                (sub) => sub.studentId.toString() === student.studentId.toString()
+                // Ensure comparison is consistent (student.studentId will be ObjectId from Classroom students array)
+                (sub) => sub.studentId && student.studentId && sub.studentId.toString() === student.studentId.toString()
             );
 
-            // Check if a submission exists AND if it has extracted text or a meaningful file name.
+            // Initialize topMatches and allMatches as empty arrays to avoid undefined issues
+            let topMatchesWithDetails = [];
+            let allMatchesWithDetails = [];
+
+            // If a submission exists and has extracted text
             if (submission && submission.extractedText) {
                 submitted++;
                 const isChecked = submission.plagiarismPercent !== null && submission.plagiarismPercent !== undefined;
                 if (isChecked) checked++;
 
+                // Process topMatches: access populated name/email
+                topMatchesWithDetails = (submission.topMatches || []).map(match => ({
+                    matchedStudentId: match.matchedStudentId ? match.matchedStudentId._id : null, // Get _id from populated object
+                    matchedText: match.matchedText,
+                    plagiarismPercent: match.plagiarismPercent,
+                    name: match.matchedStudentId ? match.matchedStudentId.name : 'Unknown Match', // Use populated name
+                    email: match.matchedStudentId ? match.matchedStudentId.email : 'N/A',     // Use populated email
+                }));
+
+                // Process allMatches: access populated name/email
+                allMatchesWithDetails = (submission.allMatches || []).map(match => ({
+                    matchedStudentId: match.matchedStudentId ? match.matchedStudentId._id : null, // Get _id from populated object
+                    plagiarismPercent: match.plagiarismPercent,
+                    name: match.matchedStudentId ? match.matchedStudentId.name : 'Unknown Match', // Use populated name
+                    email: match.matchedStudentId ? match.matchedStudentId.email : 'N/A',     // Use populated email
+                }));
+
+
                 return {
                     studentId: submission.studentId,
-                    name: student.name,
-                    email: student.email,
-                    status: "Submitted", 
+                    name: student.name, // Use name from Classroom's student list
+                    email: student.email, // Use email from Classroom's student list
+                    status: "Submitted",
                     submittedDate: submission.submittedAt,
                     fileName: submission.fileName || "Uploaded",
                     plagiarismPercent: submission.plagiarismPercent ?? "Not checked",
+                    wordCount: submission.wordCount,
                     extractedText: submission.extractedText,
                     isChecked,
-                    topMatches: submission.topMatches ?? [],
-                    allMatches: submission.allMatches ?? []
+                    topMatches: topMatchesWithDetails, // Use the processed data
+                    allMatches: allMatchesWithDetails, // Use the processed data
                 };
             } else {
                 // If no submission or if the submission is incomplete/invalid
@@ -195,10 +232,11 @@ router.get("/view/:assignmentId", authenticate, requireTeacher, async (req, res)
                     studentId: student.studentId,
                     name: student.name,
                     email: student.email,
-                    status: "Pending", 
+                    status: "Pending",
                     submittedDate: null,
                     fileName: "No submission",
                     plagiarismPercent: "—",
+                    wordCount: submission.wordCount,
                     extractedText: null,
                     isChecked: false,
                     topMatches: [],
@@ -363,25 +401,35 @@ router.post("/check-plagiarism/:assignmentId", authenticate, requireTeacher, asy
 });
 
 // View Report Route
+// View Report Route (WITH DEBUG CONSOLE.LOGS)
 router.get("/view-report/:assignmentId/:studentId", authenticate, requireTeacher, async (req, res) => {
     const { assignmentId, studentId } = req.params;
+
+    console.log("\n--- START VIEW REPORT DEBUG ---");
+    console.log(`[${new Date().toISOString()}] Fetching report for studentId: ${studentId}, assignmentId: ${assignmentId}`);
 
     try {
         // Find the assignment
         const assignment = await Assignment.findById(assignmentId);
         if (!assignment) {
+            console.log(`[${new Date().toISOString()}] ERROR: Assignment with ID ${assignmentId} not found.`);
             return res.status(404).json({ error: "Assignment not found" });
         }
+        console.log(`[${new Date().toISOString()}] Found assignment: ${assignment.title}`);
 
         const submission = assignment.submissions.find((sub) => sub.studentId.toString() === studentId.toString());
         if (!submission || !submission.submitted) {
+            console.log(`[${new Date().toISOString()}] ERROR: Submission for student ${studentId} not found or not submitted in assignment ${assignmentId}.`);
             return res.status(404).json({ error: "Submission not found or not submitted" });
         }
+        console.log(`[${new Date().toISOString()}] Found submission by student: ${submission.name} (ID: ${submission.studentId.toString()})`);
+        console.log(`[${new Date().toISOString()}] Submission's document name: ${submission.fileName}`);
 
-        // Fetch latest details for the main student 
+        // Fetch latest details for the main student
         const mainStudentUser = await User.findById(studentId).select('name email').lean();
-        const mainStudentName = mainStudentUser ? mainStudentUser.name : submission.name || 'Unknown Student';
-        const mainStudentEmail = mainStudentUser ? mainStudentUser.email : submission.email || 'Unknown Email';
+        const mainStudentName = mainStudentUser ? mainStudentUser.name : submission.name || 'Unknown (Main)';
+        const mainStudentEmail = mainStudentUser ? mainStudentUser.email : submission.email || 'N/A (Main)';
+        console.log(`[${new Date().toISOString()}] Main student details: Name='${mainStudentName}', Email='${mainStudentEmail}'`);
 
         // Aggregate all unique matched student IDs to avoid N+1 queries
         const uniqueMatchedStudentIds = new Set();
@@ -399,55 +447,73 @@ router.get("/view-report/:assignmentId/:studentId", authenticate, requireTeacher
                 uniqueMatchedStudentIds.add(match.matchedStudentId.toString());
             }
         });
+        console.log(`[${new Date().toISOString()}] Unique Matched Student IDs collected for query:`, Array.from(uniqueMatchedStudentIds));
+
 
         // Fetch all unique matched users in a single database query
         let matchedUsersMap = new Map();
         if (uniqueMatchedStudentIds.size > 0) {
+            console.log(`[${new Date().toISOString()}] Querying User collection for IDs:`, Array.from(uniqueMatchedStudentIds));
             const users = await User.find({ _id: { $in: Array.from(uniqueMatchedStudentIds) } }).select('name email').lean();
+            console.log(`[${new Date().toISOString()}] RESULT: Users found from DB query:`, users); // <-- **THIS IS A CRITICAL LOG**
             users.forEach(user => {
                 matchedUsersMap.set(user._id.toString(), { name: user.name, email: user.email });
             });
+            console.log(`[${new Date().toISOString()}] Matched Users Map after population:`, Object.fromEntries(matchedUsersMap));
+        } else {
+            console.log(`[${new Date().toISOString()}] No unique matched student IDs to query for user details.`);
         }
-
-        // Populate names and emails for both topMatches and allMatches using the map
 
         // Populate topMatches with name and email
         const topMatchesWithDetails = (submission.topMatches || []).map(match => {
             const userDetails = matchedUsersMap.get(match.matchedStudentId.toString());
-            return {
+            const populatedMatch = {
                 matchedStudentId: match.matchedStudentId,
                 matchedText: match.matchedText,
                 plagiarismPercent: match.plagiarismPercent,
-                name: userDetails ? userDetails.name : 'Unknown', 
-                email: userDetails ? userDetails.email : 'Unknown', 
+                name: userDetails ? userDetails.name : 'Unknown Match (DB Missing)', // More specific fallback
+                email: userDetails ? userDetails.email : 'N/A (DB Missing)',       // More specific fallback
             };
+            // console.log(`[${new Date().toISOString()}] Populated top match:`, populatedMatch); // Uncomment if you need to see every single match
+            return populatedMatch;
         });
 
-        // Populate allMatches with name and email (no matchedText expected by frontend)
+        // Populate allMatches with name and email
         const allMatchesWithNames = (submission.allMatches || []).map(match => {
             const userDetails = matchedUsersMap.get(match.matchedStudentId.toString());
-            return {
+            const populatedAllMatch = {
                 matchedStudentId: match.matchedStudentId,
                 plagiarismPercent: match.plagiarismPercent,
-                name: userDetails ? userDetails.name : 'Unknown', 
-                email: userDetails ? userDetails.email : 'Unknown', 
+                name: userDetails ? userDetails.name : 'Unknown Match (DB Missing)', // More specific fallback
+                email: userDetails ? userDetails.email : 'N/A (DB Missing)',       // More specific fallback
             };
+            // console.log(`[${new Date().toISOString()}] Populated all match:`, populatedAllMatch); // Uncomment if you need to see every single match
+            return populatedAllMatch;
         });
+
+        console.log(`[${new Date().toISOString()}] Prepared Top Matches (first 2):`, topMatchesWithDetails.slice(0, Math.min(2, topMatchesWithDetails.length)));
+        console.log(`[${new Date().toISOString()}] Prepared All Matches (first 2):`, allMatchesWithNames.slice(0, Math.min(2, allMatchesWithNames.length)));
 
         // Respond with the compiled data
         res.json({
-            studentId: studentId,
-            name: mainStudentName, 
-            email: mainStudentEmail, 
+            studentUserId: studentId,
+            name: mainStudentName,
+            email: mainStudentEmail,
             wordCount: submission.wordCount,
-            plagiarismPercent: submission.plagiarismPercent ?? 0,
+            plagiarismScore: submission.plagiarismPercent ?? 0,
             topMatches: topMatchesWithDetails,
             allMatches: allMatchesWithNames,
             extractedText: submission.extractedText,
+            submissionDate: submission.submittedAt,
+            documentName: submission.fileName,
+            reportGenerated: true,
         });
+
     } catch (err) {
-        console.error("Error fetching plagiarism report:", err);
+        console.error(`[${new Date().toISOString()}] FATAL ERROR during plagiarism report fetch:`, err);
         res.status(500).json({ error: "Server error" });
+    } finally {
+        console.log(`[${new Date().toISOString()}] --- END VIEW REPORT DEBUG ---`);
     }
 });
 
