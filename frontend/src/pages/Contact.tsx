@@ -1,5 +1,4 @@
-
-import { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/context/AuthContext';
 import Navbar from '@/components/Navbar';
@@ -7,7 +6,7 @@ import CustomButton from '@/components/ui/CustomButton';
 import GlassmorphismCard from '@/components/ui/GlassmorphismCard';
 import { Mail, Phone, MapPin, Send, LogIn, UserPlus } from 'lucide-react';
 import Footer from '@/components/Footer';
-import { 
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -18,7 +17,7 @@ import { useNavigate } from 'react-router-dom';
 
 const Contact = () => {
   const { toast } = useToast();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
     name: '',
@@ -29,6 +28,25 @@ const Contact = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showLoginDialog, setShowLoginDialog] = useState(false);
 
+  // Effect to pre-fill form data if user is authenticated
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      setFormData(prev => ({
+        ...prev,
+        name: user.name,
+        email: user.email,
+      }));
+    } else {
+      // Clear fields if user logs out or is not authenticated
+      setFormData({
+        name: '',
+        email: '',
+        subject: '',
+        message: ''
+      });
+    }
+  }, [isAuthenticated, user]);
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
@@ -36,30 +54,33 @@ const Contact = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!isAuthenticated) {
       setShowLoginDialog(true);
       return;
     }
-    
+
     setIsSubmitting(true);
-    
-    // Simulate sending email
+
+    // This is the "feature not available" logic, as requested, similar to forgot password
     setTimeout(() => {
       setIsSubmitting(false);
-      
+
       toast({
-        title: "Message sent successfully",
-        description: `Your message has been sent to 22cs362@mgits.ac. We'll get back to you shortly.`
+        title: "Feature Not Available",
+        description: `The contact message sending feature is not available in the current version. It will be implemented in a future update.`,
+        variant: "default", // or "info"
+        duration: 5000 // Display for 5 seconds
       });
-      
-      setFormData({
-        name: '',
-        email: '',
+
+      // Clear only subject and message fields after submission attempt
+      setFormData(prev => ({
+        ...prev,
         subject: '',
         message: ''
-      });
-    }, 1500);
+      }));
+
+    }, 1500); // Simulate a network delay
   };
 
   const handleLogin = () => {
@@ -75,7 +96,7 @@ const Contact = () => {
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
-      
+
       <main className="container max-w-6xl mx-auto pt-28 pb-16 px-6">
         <div className="text-center mb-12">
           <h1 className="text-3xl md:text-4xl font-bold mb-4">Contact Us</h1>
@@ -84,13 +105,13 @@ const Contact = () => {
             and we'll get back to you as soon as possible.
           </p>
         </div>
-        
+
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           <div className="md:col-span-2">
             <GlassmorphismCard>
               <div className="p-6">
                 <h2 className="text-2xl font-semibold mb-6">Send us a message</h2>
-                
+
                 <form onSubmit={handleSubmit} className="space-y-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
@@ -103,9 +124,10 @@ const Contact = () => {
                         onChange={handleChange}
                         className="w-full p-3 bg-secondary/30 rounded-lg border border-border focus:border-veri/50 focus:outline-none"
                         required
+                        disabled={isAuthenticated} // Disable if authenticated
                       />
                     </div>
-                    
+
                     <div>
                       <label htmlFor="email" className="block text-sm font-medium mb-1">Your Email</label>
                       <input
@@ -116,10 +138,11 @@ const Contact = () => {
                         onChange={handleChange}
                         className="w-full p-3 bg-secondary/30 rounded-lg border border-border focus:border-veri/50 focus:outline-none"
                         required
+                        disabled={isAuthenticated} // Disable if authenticated
                       />
                     </div>
                   </div>
-                  
+
                   <div>
                     <label htmlFor="subject" className="block text-sm font-medium mb-1">Subject</label>
                     <input
@@ -132,7 +155,7 @@ const Contact = () => {
                       required
                     />
                   </div>
-                  
+
                   <div>
                     <label htmlFor="message" className="block text-sm font-medium mb-1">Message</label>
                     <textarea
@@ -145,7 +168,7 @@ const Contact = () => {
                       required
                     ></textarea>
                   </div>
-                  
+
                   <div>
                     <CustomButton
                       type="submit"
@@ -160,12 +183,12 @@ const Contact = () => {
               </div>
             </GlassmorphismCard>
           </div>
-          
+
           <div>
             <GlassmorphismCard>
               <div className="p-6">
                 <h2 className="text-2xl font-semibold mb-6">Contact Information</h2>
-                
+
                 <div className="space-y-6">
                   <div className="flex items-start space-x-4">
                     <div className="p-3 rounded-full bg-veri/10 text-veri">
@@ -180,7 +203,7 @@ const Contact = () => {
                       </p>
                     </div>
                   </div>
-                  
+
                   <div className="flex items-start space-x-4">
                     <div className="p-3 rounded-full bg-veri/10 text-veri">
                       <Phone size={20} />
@@ -190,7 +213,7 @@ const Contact = () => {
                       <p className="text-muted-foreground mt-1">+91 9876543210</p>
                     </div>
                   </div>
-                  
+
                   <div className="flex items-start space-x-4">
                     <div className="p-3 rounded-full bg-veri/10 text-veri">
                       <MapPin size={20} />
@@ -205,7 +228,7 @@ const Contact = () => {
                     </div>
                   </div>
                 </div>
-                
+
                 <div className="mt-8">
                   <h3 className="font-medium mb-4">Office Hours</h3>
                   <div className="bg-secondary/30 p-4 rounded-lg border border-border">
@@ -230,9 +253,9 @@ const Contact = () => {
           </div>
         </div>
       </main>
-      
+
       <Footer />
-      
+
       {/* Login Dialog */}
       <Dialog open={showLoginDialog} onOpenChange={setShowLoginDialog}>
         <DialogContent className="sm:max-w-md">
