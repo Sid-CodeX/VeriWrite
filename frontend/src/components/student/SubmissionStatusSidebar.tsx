@@ -13,21 +13,21 @@ interface Assignment {
     submissionLate?: boolean;
 }
 
-interface Submission { 
-    _id: string; 
-    fileName?: string; 
-    fileSize?: number; 
+interface Submission {
+    _id: string;
+    fileName?: string;
+    fileSize?: number;
     submittedAt: Date;
     status?: 'processing' | 'checked' | 'error';
-    similarity?: number | null; 
-    late?: boolean; 
+    similarity?: number | null;
+    late?: boolean;
     score?: number;
 }
 
 interface SubmissionStatusSidebarProps {
     assignment: Assignment;
     submissions: Submission[];
-    submissionGuidelines: string[]; 
+    submissionGuidelines: string[];
     message: string;
 }
 
@@ -42,11 +42,11 @@ const SubmissionStatusSidebar = ({ assignment, submissions, submissionGuidelines
                     <div className="flex justify-between items-center">
                         <span className="text-sm text-muted-foreground">Status</span>
                         <span className={`text-sm font-medium ${
-                            assignment.submitted
-                                ? assignment.submissionLate
-                                    ? 'text-amber-500'
-                                    : 'text-green-500'
-                                : 'text-amber-500'
+                                assignment.submitted
+                                    ? assignment.submissionLate
+                                        ? 'text-amber-500'
+                                        : 'text-green-500'
+                                    : 'text-amber-500'
                         }`}>
                             {assignment.submitted
                                 ? assignment.submissionLate
@@ -81,11 +81,11 @@ const SubmissionStatusSidebar = ({ assignment, submissions, submissionGuidelines
                             <div className="flex justify-between items-center">
                                 <span className="text-sm text-muted-foreground">Similarity Score</span>
                                 <span className={`text-sm font-medium ${
-                                    (latestSubmission.similarity || 0) > 30 // Changed to similarity
-                                        ? 'text-red-500'
-                                        : (latestSubmission.similarity || 0) > 15
-                                            ? 'text-amber-500'
-                                            : 'text-green-500'
+                                        (latestSubmission.similarity || 0) > 30 // Changed to similarity
+                                            ? 'text-red-500'
+                                            : (latestSubmission.similarity || 0) > 15
+                                                ? 'text-amber-500'
+                                                : 'text-green-500'
                                 }`}>
                                     {latestSubmission.similarity}%
                                 </span>
