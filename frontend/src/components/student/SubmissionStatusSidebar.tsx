@@ -1,6 +1,6 @@
 import { format, isValid } from 'date-fns';
 import { Check, AlertTriangle } from 'lucide-react';
-import GlassmorphismCard from '@/components/ui/GlassmorphismCard'; // Added import for GlassmorphismCard
+import GlassmorphismCard from '@/components/ui/GlassmorphismCard';
 
 interface Assignment {
     id: string;
@@ -13,7 +13,7 @@ interface Assignment {
     submissionLate?: boolean;
 }
 
-interface Submission { // This interface needs to match what's being passed from StudentAssignmentView
+interface Submission { 
     _id: string; 
     fileName?: string; 
     fileSize?: number; 
