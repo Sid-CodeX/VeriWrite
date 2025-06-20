@@ -33,7 +33,7 @@ app.use("/api/onlinecheck", onlineCheckRoutes);
 app.use("/uploads/assignments", express.static(path.join(__dirname, "uploads/assignments")));
 app.use("/api/assignment", assignmentRoutes);
 app.use('/api/studentcourses', studentClassroomRoutes);
-app.use("/studentassignment", studentAssignmentRoutes);
+app.use("/api/studentassignment", studentAssignmentRoutes);
 app.use('/api/plagiarism-reports', plagiarismReportRoutes);
 
 // Health Check
