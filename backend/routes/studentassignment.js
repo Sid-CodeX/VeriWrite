@@ -88,12 +88,12 @@ router.get("/:assignmentId", authenticate, requireStudent, async (req, res) => {
             type: assignment.type,
             deadline: assignment.deadline,
             deadlinePassed: new Date(assignment.deadline) < new Date(),
-            submissionStatus: submissionStatus, // Can now be "Submitted (Late)"
+            submissionStatus: submissionStatus, 
             submittedAt: submittedAt,
             fileName: currentFileName,
-            canSubmitLate: assignment.canSubmitLate, // Ensure these are picked from assignment schema
-            submissionGuidelines: assignment.submissionGuidelines, // Ensure these are picked from assignment schema
-            latestSubmissionIsLate: latestSubmissionIsLate, // Send this flag to frontend
+            canSubmitLate: assignment.canSubmitLate, 
+            submissionGuidelines: assignment.submissionGuidelines, 
+            latestSubmissionIsLate: latestSubmissionIsLate, 
 
             message: new Date(assignment.deadline) < new Date() && assignment.canSubmitLate
                 ? "Deadline has passed. You can still submit, but it will be marked as late."
@@ -109,12 +109,10 @@ router.get("/:assignmentId", authenticate, requireStudent, async (req, res) => {
                 _id: sub._id,
                 fileName: sub.fileName,
                 submittedAt: sub.submittedAt,
-                plagiarismPercent: sub.plagiarismPercent, // Included
-                teacherRemark: sub.teacherRemark, // Included
-                score: sub.score, // If you uncommented in schema, keep this. Otherwise remove.
-                markDistribution: sub.markDistribution, // If you uncommented in schema, keep this. Otherwise remove.
-                status: sub.status, // Included
-                late: sub.late || false, // Use the 'late' field from the submission document
+                plagiarismPercent: sub.plagiarismPercent, 
+                teacherRemark: sub.teacherRemark, 
+                status: sub.status, 
+                late: sub.late || false, 
                 fileSize: sub.fileSize,
                 submitted: sub.submitted,
             }))
@@ -194,7 +192,7 @@ router.post("/:assignmentId/submit", authenticate, requireStudent, upload.single
     const fileExt = path.extname(file.originalname).toLowerCase();
 
     // Validate file extension and MIME type
-    const allowedExtensions = [".pdf", ".docx", ".doc", ".jpg", ".jpeg", ".png"]; // Added .doc here
+    const allowedExtensions = [".pdf", ".docx", ".doc", ".jpg", ".jpeg", ".png"];
     const allowedMimeTypes = [
         "application/pdf",
         "application/msword", // .doc
@@ -216,7 +214,7 @@ router.post("/:assignmentId/submit", authenticate, requireStudent, upload.single
         if (fileExt === ".pdf") {
             const pdfData = await pdfParse(await fs.readFile(filePath));
             extractedText = pdfData.text;
-        } else if ([".doc", ".docx"].includes(fileExt)) { // Handle both .doc and .docx
+        } else if ([".doc", ".docx"].includes(fileExt)) {
             const docData = await mammoth.extractRawText({ path: filePath });
             extractedText = docData.value;
         } else if ([".png", ".jpg", ".jpeg"].includes(fileExt)) {
@@ -233,7 +231,7 @@ router.post("/:assignmentId/submit", authenticate, requireStudent, upload.single
         // Generate MinHash Signature
         const minHashSignature = generateMinHashSignature(extractedText); // Uses default k and numPermutations
 
-        // 2. Update submission in Assignment schema
+        // Update submission in Assignment schema
         const assignment = await Assignment.findById(assignmentId);
         if (!assignment) return res.status(404).json({ error: "Assignment not found" });
 
@@ -245,23 +243,27 @@ router.post("/:assignmentId/submit", authenticate, requireStudent, upload.single
             return res.status(404).json({ error: "You are not enrolled in this assignment or no submission record found" });
         }
 
-        // Check if the deadline has passed and if late submissions are allowed
-        const deadlinePassed = new Date(assignment.deadline) < new Date();
-        const isLate = deadlinePassed && !assignment.canSubmitLate;
+        const now = new Date();
+        const deadline = new Date(assignment.deadline);
+        const deadlinePassed = now > deadline; // to check if deadline passed
 
-        if (isLate) {
+        // If deadline passed AND late submissions are NOT allowed
+        if (deadlinePassed && !assignment.canSubmitLate) {
             return res.status(403).json({ error: "Deadline has passed and late submissions are not allowed." });
         }
 
-        // 3. Save submission info
+        // It's late if the deadline passed, regardless of 'canSubmitLate'
+        const isThisSubmissionLate = deadlinePassed;
+
+        // Save submission info
         submission.submitted = true;
-        submission.submittedAt = new Date();
+        submission.submittedAt = now; 
         submission.fileName = file.originalname;
         submission.fileSize = file.size;
         submission.extractedText = extractedText;
         submission.wordCount = wordCount;
         submission.minHashSignature = minHashSignature;
-        submission.late = deadlinePassed;
+        submission.late = isThisSubmissionLate; 
 
         await assignment.save();
 
@@ -270,7 +272,7 @@ router.post("/:assignmentId/submit", authenticate, requireStudent, upload.single
         console.error("Submission error:", error);
         res.status(500).json({ error: "Internal server error" });
     } finally {
-        // 4. Clean up temp file
+        // Clean up temp file
         try {
             await fs.unlink(filePath);
         } catch (err) {
