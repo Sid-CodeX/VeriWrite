@@ -31,11 +31,10 @@ const FileUploader = ({
       const file = e.target.files[0];
 
       // Define allowed extensions and their corresponding MIME types
-      // Using an object for easier lookup and mapping
       const allowedFileTypes: { [key: string]: string[] } = {
         ".pdf": ["application/pdf"],
         ".docx": ["application/vnd.openxmlformats-officedocument.wordprocessingml.document"],
-        ".doc": ["application/msword"], // Including .doc as it's common for Word files
+        ".doc": ["application/msword"], 
         ".jpg": ["image/jpeg"],
         ".jpeg": ["image/jpeg"],
         ".png": ["image/png"],
@@ -45,8 +44,9 @@ const FileUploader = ({
       const fileType = file.type;
 
       let isValidType = false;
-      if (fileExtension && allowedFileTypes[`.\u200B${fileExtension}`]) { // Check by extension
-        isValidType = allowedFileTypes[`.\u200B${fileExtension}`].includes(fileType);
+      // Corrected: Removed zero-width space character
+      if (fileExtension && allowedFileTypes[`\.${fileExtension}`]) { // Check by extension
+        isValidType = allowedFileTypes[`\.${fileExtension}`].includes(fileType);
       } else { // Fallback check by MIME type if extension not matched or missing
         for (const ext in allowedFileTypes) {
           if (allowedFileTypes[ext].includes(fileType)) {
@@ -88,7 +88,7 @@ const FileUploader = ({
 
       onFileSelect(file);
     } else {
-      onFileSelect(null); // No file selected, reset
+      onFileSelect(null); 
     }
   };
 
@@ -134,7 +134,7 @@ const FileUploader = ({
         </div>
       )}
 
-      {isSubmissionAllowed ? ( // Only show uploader if submission is allowed
+      {isSubmissionAllowed ? ( 
         <div>
           <div
             className="border-2 border-dashed border-border rounded-md p-8 text-center cursor-pointer hover:bg-muted/10 transition-colors mb-6"
@@ -165,7 +165,7 @@ const FileUploader = ({
                       onClick={(e) => {
                         e.stopPropagation();
                         onFileSelect(null);
-                        if (fileInputRef.current) { // Clear the input field
+                        if (fileInputRef.current) { 
                           fileInputRef.current.value = "";
                         }
                       }}
