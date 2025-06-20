@@ -39,29 +39,38 @@ router.get("/:assignmentId", authenticate, requireStudent, async (req, res) => {
             return res.status(403).json({ error: "You are not enrolled in this classroom" });
         }
 
-        // Sort submissions by submittedAt descending
+        // Sort submissions by submittedAt descending.
+        // Also, filter out any submissions where submittedAt is truly an invalid date (e.g., Date(0))
         const studentSubmissions = assignment.submissions
-            .filter(s => s.studentId.equals(studentId))
-            .sort((a, b) => {
-                // Handle new Date(0) for unsubmitted items to ensure they sort correctly
-                const dateA = a.submittedAt.getTime() === 0 ? -Infinity : a.submittedAt.getTime();
-                const dateB = b.submittedAt.getTime() === 0 ? -Infinity : a.submittedAt.getTime(); // Corrected was 'b.submittedAt.getTime()'
-                return dateB - dateA;
-            });
+            .filter(s => s.studentId.equals(studentId) && s.submittedAt instanceof Date && s.submittedAt.getTime() > 0)
+            .sort((a, b) => b.submittedAt.getTime() - a.submittedAt.getTime()); // Corrected the 'dateB' bug here
 
-        // The 'latestSubmission' should only be considered if it actually has a file and a non-epoch date
-        const latestSubmission = studentSubmissions.find(sub => sub.submitted && sub.fileName && sub.submittedAt.getTime() !== 0) || null;
+        // The 'latestSubmission' is simply the first one after sorting.
+        const latestSubmission = studentSubmissions[0] || null;
 
         let submissionStatus = "Not Submitted"; // Default status
         let submittedAt = null;
-        let submissionLate = false;
+        let latestSubmissionIsLate = false; // Flag for the latest submission's lateness
         let currentFileName = null; // To store the latest file name
 
         if (latestSubmission) {
+            // Check if the latest submission was indeed submitted after the deadline
+            const deadlineDate = new Date(assignment.deadline);
+            const submissionDate = new Date(latestSubmission.submittedAt);
+            
+            // Set the 'late' flag for the submission if it's after the deadline.
+            // This is crucial for the "Submitted After Deadline" status.
+            latestSubmissionIsLate = submissionDate > deadlineDate;
+
             submissionStatus = "Submitted";
             submittedAt = latestSubmission.submittedAt;
-            submissionLate = latestSubmission.late || false;
-            currentFileName = latestSubmission.fileName; // Get the file name from the latest valid submission
+            currentFileName = latestSubmission.fileName;
+
+            // If the latest submission was late, adjust the status message
+            if (latestSubmissionIsLate) {
+                submissionStatus = "Submitted (Late)"; // New status for frontend
+            }
+
         } else if (new Date(assignment.deadline) < new Date()) {
             submissionStatus = "Overdue";
         } else {
@@ -79,16 +88,19 @@ router.get("/:assignmentId", authenticate, requireStudent, async (req, res) => {
             type: assignment.type,
             deadline: assignment.deadline,
             deadlinePassed: new Date(assignment.deadline) < new Date(),
-            submissionStatus: submissionStatus,
-            submittedAt: submittedAt, // This will be null if no valid submission
-            fileName: currentFileName, // This will be null if no valid submission
-            canSubmitLate: assignment.canSubmitLate,
+            submissionStatus: submissionStatus, // Can now be "Submitted (Late)"
+            submittedAt: submittedAt,
+            fileName: currentFileName,
+            canSubmitLate: assignment.canSubmitLate, // Ensure these are picked from assignment schema
+            submissionGuidelines: assignment.submissionGuidelines, // Ensure these are picked from assignment schema
+            latestSubmissionIsLate: latestSubmissionIsLate, // Send this flag to frontend
+
             message: new Date(assignment.deadline) < new Date() && assignment.canSubmitLate
                 ? "Deadline has passed. You can still submit, but it will be marked as late."
                 : (new Date(assignment.deadline) < new Date() && !assignment.canSubmitLate
                     ? "Deadline has passed. Submissions are no longer accepted."
                     : "You can submit your work before the deadline."),
-            submissionGuidelines: assignment.submissionGuidelines,
+            
             questionFile: assignment.questionFile ? {
                 originalName: assignment.questionFile.originalName,
                 contentType: assignment.questionFile.contentType
@@ -97,12 +109,12 @@ router.get("/:assignmentId", authenticate, requireStudent, async (req, res) => {
                 _id: sub._id,
                 fileName: sub.fileName,
                 submittedAt: sub.submittedAt,
-                plagiarismPercent: sub.plagiarismPercent,
-                teacherRemark: sub.teacherRemark,
-                score: sub.score,
-                markDistribution: sub.markDistribution,
-                status: sub.status,
-                late: sub.late || false,
+                plagiarismPercent: sub.plagiarismPercent, // Included
+                teacherRemark: sub.teacherRemark, // Included
+                score: sub.score, // If you uncommented in schema, keep this. Otherwise remove.
+                markDistribution: sub.markDistribution, // If you uncommented in schema, keep this. Otherwise remove.
+                status: sub.status, // Included
+                late: sub.late || false, // Use the 'late' field from the submission document
                 fileSize: sub.fileSize,
                 submitted: sub.submitted,
             }))
