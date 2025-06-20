@@ -50,14 +50,22 @@ function multerErrorHandler(middleware) {
 
 router.post("/create-assignment", authenticate, requireTeacher, multerErrorHandler(upload.single("file")), async (req, res) => {
     try {
-        const { type, title, description, deadline, classroomId } = req.body;
-        const teacherId = req.userId; // Corrected to use req.userId from the shared authenticate middleware
+        const {
+            type,
+            title,
+            description,
+            deadline,
+            classroomId,
+            canSubmitLate
+        } = req.body;
+        const teacherId = req.userId;
 
         if (!type || !title || !deadline || !classroomId) {
             return res.status(400).json({ error: "Missing required fields" });
         }
 
         const deadlineDate = new Date(deadline);
+        // Ensure deadline is a valid future date
         if (isNaN(deadlineDate.getTime()) || deadlineDate <= new Date()) {
             return res.status(400).json({ error: "Deadline must be a valid future date" });
         }
@@ -110,6 +118,7 @@ router.post("/create-assignment", authenticate, requireTeacher, multerErrorHandl
             classroomId,
             questionFile,
             submissions,
+            canSubmitLate: canSubmitLate !== undefined ? canSubmitLate : true,
         });
 
         await newAssignment.save();
@@ -132,9 +141,10 @@ router.post("/create-assignment", authenticate, requireTeacher, multerErrorHandl
                 title: newAssignment.title,
                 deadline: newAssignment.deadline,
                 type: newAssignment.type,
-                description: newSchema.description, // Assuming description from schema
+                description: newAssignment.description, 
                 submissions: `0/${classroom.numStudents}`,
                 hasFile: !!newAssignment.questionFile, // Indicate if file was uploaded
+                canSubmitLate: newAssignment.canSubmitLate,
             }
         });
     } catch (error) {
@@ -144,15 +154,13 @@ router.post("/create-assignment", authenticate, requireTeacher, multerErrorHandl
         }
         res.status(500).json({ error: "Server error" });
     }
-}
-);
+});
 
-// View Assignment Route (IMPROVED WITH NESTED POPULATION)
+// View Assignment Route
 router.get("/view/:assignmentId", authenticate, requireTeacher, async (req, res) => {
     try {
         const { assignmentId } = req.params;
 
-        // Populate classroomId as before, AND THEN
         // Populate matchedStudentId within topMatches and allMatches inside submissions
         const assignment = await Assignment.findById(assignmentId)
             .populate("classroomId", "name students") // Populates Classroom data
@@ -236,7 +244,7 @@ router.get("/view/:assignmentId", authenticate, requireTeacher, async (req, res)
                     submittedDate: null,
                     fileName: "No submission",
                     plagiarismPercent: "—",
-                    wordCount: submission.wordCount,
+                    wordCount: submission ? submission.wordCount : null, // Ensure wordCount is passed even if not submitted, if needed. Otherwise, set null or 0.
                     extractedText: null,
                     isChecked: false,
                     topMatches: [],
@@ -255,6 +263,8 @@ router.get("/view/:assignmentId", authenticate, requireTeacher, async (req, res)
             pending: classSize - submitted,
             checked,
             studentSubmissions,
+            canSubmitLate: assignment.canSubmitLate, 
+            questionFile: !!assignment.questionFile, 
         });
     } catch (error) {
         console.error("Error fetching assignment view:", error);
