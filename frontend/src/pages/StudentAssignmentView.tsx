@@ -16,27 +16,27 @@ import PreviousSubmissions from '@/components/student/PreviousSubmissions';
 import SubmissionStatusSidebar from '@/components/student/SubmissionStatusSidebar';
 import TeachersRemark from '@/components/student/TeachersRemark';
 
-// INTERFACES 
+// INTERFACES
 interface StudentSubmission {
     _id: string;
     fileName: string;
     fileSize: number;
-    submittedAt: string; 
-    plagiarismPercent?: number | null; 
+    submittedAt: string;
+    plagiarismPercent?: number | null;
     teacherRemark?: string;
     score?: number; // Not currently using in schema, later can be included if needed
     markDistribution?: { // This is also not using currently, for exams, we can consider adding this
         section: string;
         maxMarks: number;
         scored: number;
-    }[]; 
-    status?: 'processing' | 'checked' | 'error'; 
-    late: boolean;
+    }[];
+    status?: 'processing' | 'checked' | 'error';
+    late: boolean; // Keep this as boolean
     submitted: boolean;
 }
 
 interface AssignmentDetailsResponse {
-    latestSubmissionIsLate: boolean; 
+    latestSubmissionIsLate: boolean;
     assignmentId: string;
     classroom: {
         id: string;
@@ -46,8 +46,8 @@ interface AssignmentDetailsResponse {
     description?: string;
     type: 'Assignment' | 'Exam';
     deadline: string;
-    deadlinePassed: boolean;
-    canSubmitLate: boolean;
+    deadlinePassed: boolean; // This will now correctly reflect if the deadline is past
+    canSubmitLate: boolean; // This is directly from your backend schema
     message: string;
     submissionGuidelines: string[];
     questionFile?: {
@@ -55,6 +55,7 @@ interface AssignmentDetailsResponse {
         contentType: string;
     };
     submissions: StudentSubmission[];
+    // The submissionStatus from backend will now correctly reflect 'Submitted (Late)'
     submissionStatus: 'Submitted' | 'Pending' | 'Not Submitted' | 'Overdue' | 'Submitted (Late)';
     submittedAt: string | null;
     fileName: string | null;
@@ -66,9 +67,9 @@ interface PreviousSubmissionPropsType {
     fileName: string;
     fileSize: number;
     submittedAt: Date;
-    status?: 'processing' | 'checked' | 'error'; 
-    similarity?: number | null; 
-    late?: boolean;
+    status?: 'processing' | 'checked' | 'error';
+    similarity?: number | null;
+    late?: boolean; // Ensure this is also optional or boolean
     score?: number;
     teacherRemark?: string;
     submitted: boolean;
@@ -83,16 +84,16 @@ interface AssignmentDetailsPropsType {
     submittedAt?: Date;
     description?: string;
     type: 'Assignment' | 'Exam';
-    submissionLate?: boolean;
+    submissionLate?: boolean; // This prop already exists and is correctly typed
     questionFile?: { originalName: string };
     onDownloadQuestionFile: () => void;
     onViewQuestionFile: () => void;
-    isPastDeadline: boolean;
+    isPastDeadline: boolean; // This prop already exists and is correctly typed
 }
 
 
 // Helper function for plagiarism classification
-const getPlagiarismCategory = (percent: number | null | undefined): string => { 
+const getPlagiarismCategory = (percent: number | null | undefined): string => {
     if (percent === undefined || percent === null) {
         return "N/A"; // Or "Pending Scan", "No Report" etc.
     }
@@ -167,7 +168,7 @@ const StudentAssignmentView: React.FC = () => {
             const filteredAndSortedSubmissions = (data.submissions || [])
                 .filter(s => s.submitted && s.submittedAt && new Date(s.submittedAt).getTime() > 0)
                 .sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
-            
+
             setSubmissions(filteredAndSortedSubmissions);
 
             if (data.questionFile && data.questionFile.originalName) {
@@ -409,7 +410,7 @@ const StudentAssignmentView: React.FC = () => {
                 });
             }
         } finally {
-            setSelectedFile(null); 
+            setSelectedFile(null);
             setIsUploading(false);
         }
     };
@@ -541,18 +542,19 @@ const StudentAssignmentView: React.FC = () => {
         ? new Date(assignment.submittedAt)
         : undefined;
 
+    // Use the values from `assignment` directly, as they are now accurately coming from the backend
     const assignmentDetailsProps: AssignmentDetailsPropsType = {
         id: assignment.assignmentId,
         title: assignment.title,
         description: assignment.description,
         deadline: new Date(assignment.deadline),
-        submitted: assignment.submissionStatus.includes('Submitted'), // Check if it contains "Submitted"
+        submitted: assignment.submissionStatus.includes('Submitted'),
         submittedAt: validSubmittedAtDate,
-        submissionLate: assignment.latestSubmissionIsLate,
+        submissionLate: assignment.latestSubmissionIsLate, // This directly uses the backend's calculated late status
         questionFile: questionFileDisplayName ? { originalName: questionFileDisplayName } : undefined,
         onDownloadQuestionFile: handleDownloadQuestionFile,
         onViewQuestionFile: handleViewQuestionFile,
-        isPastDeadline: assignment.deadlinePassed,
+        isPastDeadline: assignment.deadlinePassed, // This directly uses the backend's calculated deadlinePassed
         type: assignment.type,
     };
 
@@ -565,7 +567,7 @@ const StudentAssignmentView: React.FC = () => {
         submittedAt: new Date(sub.submittedAt),
         status: sub.status,
         similarity: sub.plagiarismPercent,
-        late: sub.late,
+        late: sub.late, // This is now directly from the backend's 'late' flag
         score: sub.score,
         teacherRemark: sub.teacherRemark,
         submitted: sub.submitted,
@@ -575,6 +577,15 @@ const StudentAssignmentView: React.FC = () => {
     const latestSubmission = submissions.length > 0
         ? submissions[0]
         : undefined;
+
+    // Determine if the FileUploader should be enabled.
+    // It should be enabled if:
+    // 1. Deadline has NOT passed OR (Deadline HAS passed AND canSubmitLate is TRUE)
+    // This 'canUpload' variable is no longer needed to be passed to FileUploader.
+    // The FileUploader component should internally use assignment.deadlinePassed and assignment.canSubmitLate
+    // to determine its UI state (e.g., disable upload button).
+    // const canUpload = !assignment.deadlinePassed || (assignment.deadlinePassed && assignment.canSubmitLate);
+
 
     return (
         <div className="min-h-screen flex flex-col">
@@ -634,6 +645,7 @@ const StudentAssignmentView: React.FC = () => {
                                 <ExamResult submission={latestSubmission} />
                             )}
 
+                            {/* FileUploader component */}
                             <FileUploader
                                 isPastDeadline={assignment.deadlinePassed}
                                 canSubmitLate={assignment.canSubmitLate}
@@ -642,6 +654,7 @@ const StudentAssignmentView: React.FC = () => {
                                 selectedFile={selectedFile}
                                 isUploading={isUploading}
                                 submissionMessage={assignment.message}
+                                // Removed canUpload prop as it should be handled internally by FileUploader
                             />
 
                             {/* Conditionally render PreviousSubmissions ONLY if there are valid, filtered submissions */}
@@ -661,6 +674,7 @@ const StudentAssignmentView: React.FC = () => {
                                 submissions={filteredAndMappedSubmissions} // Pass the mapped submissions
                                 submissionGuidelines={assignment.submissionGuidelines}
                                 message={assignment.message}
+                                // Removed latestSubmission prop as it's calculated internally
                             />
                         </div>
                     </div>
