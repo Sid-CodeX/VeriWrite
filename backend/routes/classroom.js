@@ -156,8 +156,11 @@ router.get("/view-course/:id", authenticate, requireTeacher, async (req, res) =>
                 id: task._id,
                 type: task.type,
                 title: task.title,
+                description: task.description, 
                 deadline: task.deadline,
                 submissions: `${submittedCount}/${classroom.numStudents}`,
+                hasFile: !!task.questionFile, 
+                canSubmitLate: task.canSubmitLate, 
             };
         };
 
