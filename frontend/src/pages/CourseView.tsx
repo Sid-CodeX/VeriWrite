@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   PlusCircle, FileText, Calendar, Users, ArrowLeft,
-  DownloadCloud, Trash2, UserPlus, XCircle // Added XCircle for modal close
+  DownloadCloud, Trash2, UserPlus, XCircle
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import axios from 'axios';
@@ -26,6 +26,7 @@ interface Assignment {
   type: 'assignment' | 'exam';
   description?: string;
   hasFile?: boolean;
+  canSubmitLate: boolean; 
 }
 
 interface Course {
@@ -63,7 +64,10 @@ const CourseView = () => {
   // NEW STATES FOR ASSIGNMENT DELETE CONFIRMATION MODAL
   const [showDeleteAssignmentConfirmation, setShowDeleteAssignmentConfirmation] = useState(false);
   const [assignmentToDelete, setAssignmentToDelete] = useState<{ id: string; type: 'assignment' | 'exam'; title: string } | null>(null);
-  const [isDeletingAssignment, setIsDeletingAssignment] = useState(false); // To disable delete button during deletion
+  const [isDeletingAssignment, setIsDeletingAssignment] = useState(false); 
+
+  // NEW STATE FOR CAN SUBMIT LATE OPTION
+  const [canSubmitLate, setCanSubmitLate] = useState(true); 
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -117,6 +121,7 @@ const CourseView = () => {
           type: task.type.toLowerCase(),
           description: task.description || '',
           hasFile: task.hasFile || false,
+          canSubmitLate: task.canSubmitLate, 
         };
       });
       setAssignments(fetchedAssignments.sort((a, b) => b.deadline.getTime() - a.deadline.getTime()));
@@ -140,20 +145,17 @@ const CourseView = () => {
     fetchCourseData();
   }, [fetchCourseData]);
 
-  // MODIFIED: handleDeleteAssignment now opens the confirmation modal
   const handleDeleteAssignment = (assignmentId: string, type: 'assignment' | 'exam', title: string) => {
     setAssignmentToDelete({ id: assignmentId, type, title });
     setShowDeleteAssignmentConfirmation(true);
   };
 
-  // NEW: Function to execute actual assignment deletion after confirmation
   const confirmDeleteAssignment = async () => {
     if (!assignmentToDelete) return;
 
     setIsDeletingAssignment(true);
     try {
       const token = localStorage.getItem('token');
-      // Backend expects assignmentId in the URL for /delete/:assignmentId (DELETE)
       await axios.delete(`${API_BASE_URL}/api/assignment/delete/${assignmentToDelete.id}`, {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -165,7 +167,7 @@ const CourseView = () => {
         description: `"${assignmentToDelete.title}" has been deleted.`,
       });
 
-      await fetchCourseData(); // Re-fetch to update the lists and counts
+      await fetchCourseData();
 
     } catch (error: any) {
       console.error(`Error deleting ${assignmentToDelete.type}:`, error);
@@ -176,12 +178,11 @@ const CourseView = () => {
       });
     } finally {
       setIsDeletingAssignment(false);
-      setShowDeleteAssignmentConfirmation(false); // Close the modal
-      setAssignmentToDelete(null); // Clear assignment details
+      setShowDeleteAssignmentConfirmation(false);
+      setAssignmentToDelete(null);
     }
   };
 
-  // Course Delete Confirmation (unchanged from last iteration)
   const handleDeleteCourse = () => {
     setShowDeleteConfirmation(true);
   };
@@ -351,6 +352,7 @@ const CourseView = () => {
       formData.append('type', assignmentType.charAt(0).toUpperCase() + assignmentType.slice(1));
       formData.append('deadline', assignmentDeadline);
       formData.append('description', description.trim());
+      formData.append('canSubmitLate', String(canSubmitLate)); 
       if (assignmentFile) {
         formData.append('file', assignmentFile);
       }
@@ -376,6 +378,7 @@ const CourseView = () => {
           type: response.data.task.type.toLowerCase(),
           description: response.data.task.description,
           hasFile: response.data.task.hasFile,
+          canSubmitLate: response.data.task.canSubmitLate, 
         };
         setAssignments(prevAssignments =>
           [newTask, ...prevAssignments].sort((a, b) => b.deadline.getTime() - a.deadline.getTime())
@@ -394,6 +397,7 @@ const CourseView = () => {
       setAssignmentDeadline('');
       setAssignmentFile(null);
       setDescription('');
+      setCanSubmitLate(true); 
       if (fileInputRef.current) fileInputRef.current.value = '';
       setShowCreateAssignment(false);
 
@@ -556,6 +560,7 @@ const CourseView = () => {
                         setAssignmentDeadline('');
                         setAssignmentFile(null);
                         setDescription('');
+                        setCanSubmitLate(true); 
                         if (fileInputRef.current) fileInputRef.current.value = '';
                     }}
                     className="text-muted-foreground hover:text-foreground"
@@ -630,6 +635,18 @@ const CourseView = () => {
                     />
                   </div>
 
+                  {/* NEW: Can Submit Late Checkbox */}
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="canSubmitLate"
+                      checked={canSubmitLate}
+                      onChange={(e) => setCanSubmitLate(e.target.checked)}
+                      className="h-4 w-4 text-veri"
+                    />
+                    <label htmlFor="canSubmitLate" className="text-sm font-medium text-white">Allow late submissions</label>
+                  </div>
+
                   <div>
                     <label className="block text-sm font-medium mb-1 text-white">Upload File (Optional)</label>
                     <div className="border border-dashed border-border rounded-md p-6 text-center bg-background/60">
@@ -686,6 +703,7 @@ const CourseView = () => {
                           setAssignmentDeadline('');
                           setAssignmentFile(null);
                           setDescription('');
+                          setCanSubmitLate(true); 
                           if (fileInputRef.current) fileInputRef.current.value = '';
                       }}
                       disabled={isCreatingAssignment}
@@ -819,6 +837,14 @@ const CourseView = () => {
                               <span>File attached</span>
                           </div>
                         )}
+                        {/* NEW: Display canSubmitLate status */}
+                        <div className="flex items-center gap-1">
+                          {assignment.canSubmitLate ? (
+                            <span className="text-green-500 font-medium text-xs">Late Submissions Allowed</span>
+                          ) : (
+                            <span className="text-red-500 font-medium text-xs">No Late Submissions</span>
+                          )}
+                        </div>
                       </div>
                     </div>
 
