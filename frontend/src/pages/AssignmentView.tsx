@@ -9,7 +9,7 @@ import GlassmorphismCard from '@/components/ui/GlassmorphismCard';
 import Footer from '@/components/Footer';
 import PlagiarismReportModal from '@/components/PlagiarismReportModal';
 import ExtractedTextModal from '@/components/ExtractedTextModal';
-import { format } from 'date-fns'; // Make sure this import is correct: `import { format } from 'date-fns';` not `format =`
+import { format } from 'date-fns';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL; // Assuming you have this env variable for your API base URL
 
@@ -35,7 +35,7 @@ interface StudentSubmissionBackend {
     wordCount: number;
     isChecked: boolean; // Indicates if plagiarism check has been run and results are available
     late: boolean;
-    teacherRemark: string;
+    teacherRemark: string; // ADDED: Teacher's remark from backend
     minHashSignature: number[];
     topMatches: {
         matchedStudentId: string;
@@ -75,6 +75,7 @@ interface Student {
         name?: string;
         email?: string;
     }[];
+    teacherRemark: string; // ADDED: Teacher's remark for display and passing to modal
 }
 
 interface Assignment {
@@ -83,9 +84,7 @@ interface Assignment {
     deadline: Date;
     type: 'Assignment' | 'Exam';
     description?: string;
-    // --- ADDED: canSubmitLate field to the interface ---
     canSubmitLate: boolean;
-    // --- END ADDED ---
 }
 
 interface Course {
@@ -134,12 +133,13 @@ const AssignmentView = () => {
     const [students, setStudents] = useState<Student[]>([]);
     const [isCheckingAllPlagiarism, setIsCheckingAllPlagiarism] = useState(false);
     const [showReportModal, setShowReportModal] = useState(false);
-    const [selectedStudentForReport, setSelectedStudentForReport] = useState<Student | null>(null); // For plagiarism report
+    // Updated type to ensure assignmentId is always present when opening the report modal
+    const [selectedStudentForReport, setSelectedStudentForReport] = useState<(Student & { assignmentId: string }) | null>(null);
     const [showExtractedTextModal, setShowExtractedTextModal] = useState(false);
-    const [selectedStudentForExtractedText, setSelectedStudentForExtractedText] = useState<Student | null>(null); // For extracted text view
+    const [selectedStudentForExtractedText, setSelectedStudentForExtractedText] = useState<Student | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [isGeneratingPdf, setIsGeneratingPdf] = useState(false); // New state for PDF generation loading
+    const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
     useEffect(() => {
         window.scrollTo(0, 0);
@@ -165,7 +165,7 @@ const AssignmentView = () => {
                 return;
             }
 
-            const response = await fetch(`${API_BASE_URL}/api/assignment/view/${assignmentId}`, { // Using API_BASE_URL
+            const response = await fetch(`${API_BASE_URL}/api/assignment/view/${assignmentId}`, {
                 method: 'GET',
                 headers: {
                     'Content-Type': 'application/json',
@@ -198,9 +198,7 @@ const AssignmentView = () => {
                 deadline: new Date(data.dueDate),
                 type: data.assignmentType,
                 description: data.description,
-                // --- ADDED: Map canSubmitLate from backend response ---
-                canSubmitLate: data.canSubmitLate ?? true, // Default to true if backend doesn't send it, for safety
-                // --- END ADDED ---
+                canSubmitLate: data.canSubmitLate ?? true,
             });
 
             setCourse({
@@ -209,7 +207,7 @@ const AssignmentView = () => {
             });
 
             const mappedStudents: Student[] = data.studentSubmissions.map((sub: StudentSubmissionBackend) => ({
-                studentUserId: sub.studentId, // This is the actual student's User ID
+                studentUserId: sub.studentId,
                 name: sub.name,
                 email: sub.email,
                 submissionDate: sub.submittedDate ? new Date(sub.submittedDate) : null,
@@ -220,15 +218,16 @@ const AssignmentView = () => {
                 wordCount: sub.wordCount,
                 topMatches: sub.topMatches || [],
                 allMatches: sub.allMatches || [],
+                teacherRemark: sub.teacherRemark || '', // Ensure remark is initialized
             }));
             setStudents(mappedStudents);
 
         } catch (err) {
             console.error("Error fetching assignment details:", err);
-            setError(err.message || "An unexpected error occurred.");
+            setError((err as Error).message || "An unexpected error occurred.");
             toast({
                 title: "Error",
-                description: err.message || "Failed to load assignment details.",
+                description: (err as Error).message || "Failed to load assignment details.",
                 variant: "destructive",
             });
         } finally {
@@ -239,6 +238,23 @@ const AssignmentView = () => {
     useEffect(() => {
         fetchAssignmentDetails();
     }, [fetchAssignmentDetails]);
+
+    // Handler to update a student's remark in the local state
+    const handleRemarkUpdated = useCallback((studentId: string, newRemark: string) => {
+        setStudents(prevStudents =>
+            prevStudents.map(student =>
+                student.studentUserId === studentId
+                    ? { ...student, teacherRemark: newRemark }
+                    : student
+            )
+        );
+        toast({
+            title: "Remark Saved",
+            description: "Student remark updated successfully.",
+            variant: "success",
+        });
+    }, [toast]);
+
 
     const handleCheckAllPlagiarism = async () => {
         setIsCheckingAllPlagiarism(true);
@@ -300,10 +316,10 @@ const AssignmentView = () => {
 
         } catch (err) {
             console.error("Error during plagiarism check:", err);
-            setError(err.message || "An unexpected error occurred during plagiarism check.");
+            setError((err as Error).message || "An unexpected error occurred during plagiarism check.");
             toast({
                 title: "Plagiarism Check Failed",
-                description: err.message || "Failed to complete plagiarism check.",
+                description: (err as Error).message || "Failed to complete plagiarism check.",
                 variant: "destructive",
             });
         } finally {
@@ -366,7 +382,7 @@ const AssignmentView = () => {
             console.error("Error downloading PDF:", err);
             toast({
                 title: "Download Failed",
-                description: err.message || "Failed to download plagiarism report.",
+                description: (err as Error).message || "Failed to download plagiarism report.",
                 variant: "destructive",
             });
         } finally {
@@ -377,7 +393,6 @@ const AssignmentView = () => {
 
     // Handler for viewing the full plagiarism report
     const handleViewReport = (student: Student) => {
-        // Check if the report is actually generated before opening the modal
         if (!student.reportGenerated) {
             toast({
                 title: "Report Not Available",
@@ -386,8 +401,17 @@ const AssignmentView = () => {
             });
             return;
         }
-        setSelectedStudentForReport(student);
-        setShowReportModal(true);
+        // Pass the assignmentId along with the student data
+        if (assignmentId) {
+             setSelectedStudentForReport({ ...student, assignmentId: assignmentId });
+             setShowReportModal(true);
+        } else {
+             toast({
+                title: "Error",
+                description: "Assignment ID is missing, cannot open report.",
+                variant: "destructive",
+            });
+        }
     };
 
     // Handler for viewing just the extracted text
@@ -681,6 +705,7 @@ const AssignmentView = () => {
                     onClose={() => setShowReportModal(false)}
                     onDownloadReport={() => handleDownloadPlagiarismPdf(selectedStudentForReport.studentUserId, selectedStudentForReport.name, assignment.title)}
                     isGeneratingPdf={isGeneratingPdf}
+                    onRemarkUpdated={handleRemarkUpdated} // ADDED: Pass the callback here
                 />
             )}
 
