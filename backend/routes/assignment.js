@@ -230,6 +230,7 @@ router.get("/view/:assignmentId", authenticate, requireTeacher, async (req, res)
                     plagiarismPercent: submission.plagiarismPercent ?? "Not checked",
                     wordCount: submission.wordCount,
                     extractedText: submission.extractedText,
+                    teacherRemark: submission.teacherRemark,
                     isChecked,
                     topMatches: topMatchesWithDetails, // Use the processed data
                     allMatches: allMatchesWithDetails, // Use the processed data
