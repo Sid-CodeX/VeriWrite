@@ -1,8 +1,12 @@
-import React from 'react';
-import { X, Download, Copy, ExternalLink, AlertCircle, BarChart, FileText, ListChecks } from 'lucide-react'; // Added ListChecks
+import React, { useState, useEffect } from 'react'; // Added useEffect for textarea and useState for remark
+import { X, Download, Copy, ExternalLink, AlertCircle, BarChart, FileText, ListChecks, Save } from 'lucide-react'; // Added Save icon
 import CustomButton from '@/components/ui/CustomButton';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
+import axios from 'axios'; // Import axios for API call
+
+// Define the API base URL from your environment variables
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 // --- Interfaces (Consider moving these to a shared types file like src/types/plagiarism.ts or similar) ---
 interface MatchDetail {
@@ -31,7 +35,9 @@ interface StudentReportData { // Renamed from 'Student' to avoid confusion with 
     extractedText: string | null;
     wordCount: number;
     topMatches: MatchDetail[];
-    allMatches: AllMatchEntry[]; // Use the new AllMatchEntry interface
+    allMatches: AllMatchEntry[];
+    teacherRemark: string; // Added teacherRemark to the interface
+    assignmentId: string; // Added assignmentId so we can pass it for the API call
 }
 
 interface PlagiarismReportModalProps {
@@ -41,6 +47,8 @@ interface PlagiarismReportModalProps {
     onClose: () => void;
     onDownloadReport: () => void;
     isGeneratingPdf: boolean;
+    // New prop to trigger a refresh in the parent AssignmentView
+    onRemarkUpdated: (studentId: string, newRemark: string) => void;
 }
 
 const PlagiarismReportModal: React.FC<PlagiarismReportModalProps> = ({
@@ -50,13 +58,20 @@ const PlagiarismReportModal: React.FC<PlagiarismReportModalProps> = ({
     onClose,
     onDownloadReport,
     isGeneratingPdf,
+    onRemarkUpdated, // Destructure new prop
 }) => {
     const { toast } = useToast();
+    const [currentRemark, setCurrentRemark] = useState(student.teacherRemark || 'No remarks'); // State for the remark
+    const [isSavingRemark, setIsSavingRemark] = useState(false); // Loading state for saving remark
+
+    // Update local state if the remark prop changes (e.g., parent re-fetches data)
+    useEffect(() => {
+        setCurrentRemark(student.teacherRemark || 'No remarks');
+    }, [student.teacherRemark]);
+
 
     const handleCopyText = (text: string | null) => {
         if (text) {
-            // navigator.clipboard.writeText(text); // navigator.clipboard.writeText() may not work due to iFrame restrictions.
-            // Using document.execCommand('copy') as a fallback.
             const textArea = document.createElement("textarea");
             textArea.value = text;
             document.body.appendChild(textArea);
@@ -94,7 +109,6 @@ const PlagiarismReportModal: React.FC<PlagiarismReportModalProps> = ({
         return 'text-red-600';
     };
 
-    // This function for highlighting text based on topMatches remains the same
     const renderHighlightedText = (originalText: string, matches: MatchDetail[]) => {
         if (!originalText || matches.length === 0) return originalText;
 
@@ -141,6 +155,41 @@ const PlagiarismReportModal: React.FC<PlagiarismReportModalProps> = ({
         return <>{segments}</>;
     };
 
+    const handleSaveRemark = async () => {
+        setIsSavingRemark(true);
+        try {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                toast({ title: "Auth Error", description: "No token found. Please log in.", variant: "destructive" });
+                return;
+            }
+
+            // --- API Call to update remark (Placeholder for now) ---
+            const response = await axios.put(`${API_BASE_URL}/api/assignment/submission/remark/${student.assignmentId}/${student.studentUserId}`,
+                { teacherRemark: currentRemark },
+                {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                    },
+                }
+            );
+
+            if (response.status === 200) {
+                toast({ title: "Success", description: "Teacher remark saved successfully!", variant: "success" });
+                // Call the prop to notify parent to re-fetch or update its state
+                onRemarkUpdated(student.studentUserId, currentRemark);
+            } else {
+                toast({ title: "Error", description: response.data?.error || "Failed to save remark.", variant: "destructive" });
+            }
+
+        } catch (error: any) {
+            console.error("Error saving remark:", error);
+            toast({ title: "Error", description: error.response?.data?.error || "An error occurred while saving remark.", variant: "destructive" });
+        } finally {
+            setIsSavingRemark(false);
+        }
+    };
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in">
@@ -188,6 +237,30 @@ const PlagiarismReportModal: React.FC<PlagiarismReportModalProps> = ({
                                     </p>
                                 )}
                             </div>
+                        </div>
+                    </div>
+
+                    {/* Teacher Remark Section */}
+                    <div className="mb-6 bg-muted/30 p-4 rounded-lg">
+                        <h3 className="font-semibold text-lg mb-3 flex items-center">
+                            <ListChecks className="h-5 w-5 mr-2 text-primary" /> Teacher's Remark
+                        </h3>
+                        <textarea
+                            className="w-full p-3 border border-border rounded-md bg-background text-foreground focus:ring-1 focus:ring-primary focus:border-primary transition-colors"
+                            rows={4}
+                            placeholder="Add your remark here..."
+                            value={currentRemark}
+                            onChange={(e) => setCurrentRemark(e.target.value)}
+                        />
+                        <div className="flex justify-end mt-4">
+                            <CustomButton
+                                onClick={handleSaveRemark}
+                                loading={isSavingRemark}
+                                disabled={isSavingRemark}
+                                icon={<Save className="h-4 w-4" />}
+                            >
+                                {isSavingRemark ? 'Saving...' : 'Save Remark'}
+                            </CustomButton>
                         </div>
                     </div>
 
