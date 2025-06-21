@@ -222,8 +222,8 @@ router.get("/view/:assignmentId", authenticate, requireTeacher, async (req, res)
 
                 return {
                     studentId: submission.studentId,
-                    name: student.name, // Use name from Classroom's student list
-                    email: student.email, // Use email from Classroom's student list
+                    name: student.name, 
+                    email: student.email, 
                     status: "Submitted",
                     submittedDate: submission.submittedAt,
                     fileName: submission.fileName || "Uploaded",
@@ -605,6 +605,48 @@ router.get("/view-extracted-text/:assignmentId/:studentId", authenticate, requir
     } catch (err) {
         console.error("Error fetching extracted text:", err);
         res.status(500).json({ error: "Server error" });
+    }
+});
+
+router.put("/submission/remark/:assignmentId/:studentId", authenticate, requireTeacher, async (req, res) => {
+    const { assignmentId, studentId } = req.params;
+    const { teacherRemark } = req.body; // The new remark from the frontend
+
+    try {
+        if (typeof teacherRemark === 'undefined' || teacherRemark === null) {
+            return res.status(400).json({ error: "Teacher remark is required." });
+        }
+
+        // Find the assignment by its ID
+        const assignment = await Assignment.findById(assignmentId);
+
+        if (!assignment) {
+            return res.status(404).json({ error: "Assignment not found." });
+        }
+
+        // Find the specific student's submission within the assignment's submissions array
+        const submissionIndex = assignment.submissions.findIndex(
+            (sub) => sub.studentId && sub.studentId.toString() === studentId.toString()
+        );
+
+        if (submissionIndex === -1) {
+            return res.status(404).json({ error: "Student submission not found for this assignment." });
+        }
+
+        // Update the teacherRemark for the found submission
+        assignment.submissions[submissionIndex].teacherRemark = teacherRemark;
+
+        // Save the updated assignment document
+        await assignment.save();
+
+        res.status(200).json({
+            message: "Teacher remark updated successfully.",
+            updatedRemark: teacherRemark,
+        });
+
+    } catch (error) {
+        console.error("Error updating teacher remark:", error);
+        res.status(500).json({ error: "Server error while updating remark." });
     }
 });
 
