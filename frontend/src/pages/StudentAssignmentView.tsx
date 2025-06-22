@@ -31,7 +31,7 @@ interface StudentSubmission {
         scored: number;
     }[];
     status?: 'processing' | 'checked' | 'error';
-    late: boolean; // Keep this as boolean
+    late: boolean; 
     submitted: boolean;
 }
 
@@ -46,8 +46,8 @@ interface AssignmentDetailsResponse {
     description?: string;
     type: 'Assignment' | 'Exam';
     deadline: string;
-    deadlinePassed: boolean; // This will now correctly reflect if the deadline is past
-    canSubmitLate: boolean; // This is directly from your backend schema
+    deadlinePassed: boolean;
+    canSubmitLate: boolean; 
     message: string;
     submissionGuidelines: string[];
     questionFile?: {
@@ -69,7 +69,7 @@ interface PreviousSubmissionPropsType {
     submittedAt: Date;
     status?: 'processing' | 'checked' | 'error';
     similarity?: number | null;
-    late?: boolean; // Ensure this is also optional or boolean
+    late?: boolean; 
     score?: number;
     teacherRemark?: string;
     submitted: boolean;
@@ -84,18 +84,18 @@ interface AssignmentDetailsPropsType {
     submittedAt?: Date;
     description?: string;
     type: 'Assignment' | 'Exam';
-    submissionLate?: boolean; // This prop already exists and is correctly typed
+    submissionLate?: boolean; 
     questionFile?: { originalName: string };
     onDownloadQuestionFile: () => void;
     onViewQuestionFile: () => void;
-    isPastDeadline: boolean; // This prop already exists and is correctly typed
+    isPastDeadline: boolean; 
 }
 
 
 // Helper function for plagiarism classification
 const getPlagiarismCategory = (percent: number | null | undefined): string => {
     if (percent === undefined || percent === null) {
-        return "N/A"; // Or "Pending Scan", "No Report" etc.
+        return "N/A"; 
     }
     if (percent >= 50) return "High";
     if (percent >= 20) return "Medium";
@@ -163,7 +163,7 @@ const StudentAssignmentView: React.FC = () => {
 
             const data = response.data;
             setAssignment(data);
-            // Filter out submissions that are not truly submitted (e.g., placeholder in DB)
+            // Filter out submissions that are not truly submitted 
             // and sort them by submission time
             const filteredAndSortedSubmissions = (data.submissions || [])
                 .filter(s => s.submitted && s.submittedAt && new Date(s.submittedAt).getTime() > 0)
@@ -550,11 +550,11 @@ const StudentAssignmentView: React.FC = () => {
         deadline: new Date(assignment.deadline),
         submitted: assignment.submissionStatus.includes('Submitted'),
         submittedAt: validSubmittedAtDate,
-        submissionLate: assignment.latestSubmissionIsLate, // This directly uses the backend's calculated late status
+        submissionLate: assignment.latestSubmissionIsLate, 
         questionFile: questionFileDisplayName ? { originalName: questionFileDisplayName } : undefined,
         onDownloadQuestionFile: handleDownloadQuestionFile,
         onViewQuestionFile: handleViewQuestionFile,
-        isPastDeadline: assignment.deadlinePassed, // This directly uses the backend's calculated deadlinePassed
+        isPastDeadline: assignment.deadlinePassed, 
         type: assignment.type,
     };
 
@@ -567,7 +567,7 @@ const StudentAssignmentView: React.FC = () => {
         submittedAt: new Date(sub.submittedAt),
         status: sub.status,
         similarity: sub.plagiarismPercent,
-        late: sub.late, // This is now directly from the backend's 'late' flag
+        late: sub.late, 
         score: sub.score,
         teacherRemark: sub.teacherRemark,
         submitted: sub.submitted,
