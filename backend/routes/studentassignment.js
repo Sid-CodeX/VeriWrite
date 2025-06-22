@@ -43,7 +43,7 @@ router.get("/:assignmentId", authenticate, requireStudent, async (req, res) => {
         // Also, filter out any submissions where submittedAt is truly an invalid date (e.g., Date(0))
         const studentSubmissions = assignment.submissions
             .filter(s => s.studentId.equals(studentId) && s.submittedAt instanceof Date && s.submittedAt.getTime() > 0)
-            .sort((a, b) => b.submittedAt.getTime() - a.submittedAt.getTime()); // Corrected the 'dateB' bug here
+            .sort((a, b) => b.submittedAt.getTime() - a.submittedAt.getTime());
 
         // The 'latestSubmission' is simply the first one after sorting.
         const latestSubmission = studentSubmissions[0] || null;
@@ -57,7 +57,7 @@ router.get("/:assignmentId", authenticate, requireStudent, async (req, res) => {
             // Check if the latest submission was indeed submitted after the deadline
             const deadlineDate = new Date(assignment.deadline);
             const submissionDate = new Date(latestSubmission.submittedAt);
-            
+
             // Set the 'late' flag for the submission if it's after the deadline.
             // This is crucial for the "Submitted After Deadline" status.
             latestSubmissionIsLate = submissionDate > deadlineDate;
@@ -88,33 +88,39 @@ router.get("/:assignmentId", authenticate, requireStudent, async (req, res) => {
             type: assignment.type,
             deadline: assignment.deadline,
             deadlinePassed: new Date(assignment.deadline) < new Date(),
-            submissionStatus: submissionStatus, 
+            submissionStatus: submissionStatus,
             submittedAt: submittedAt,
             fileName: currentFileName,
-            canSubmitLate: assignment.canSubmitLate, 
-            submissionGuidelines: assignment.submissionGuidelines, 
-            latestSubmissionIsLate: latestSubmissionIsLate, 
+            canSubmitLate: assignment.canSubmitLate,
+            submissionGuidelines: assignment.submissionGuidelines,
+            latestSubmissionIsLate: latestSubmissionIsLate,
 
             message: new Date(assignment.deadline) < new Date() && assignment.canSubmitLate
                 ? "Deadline has passed. You can still submit, but it will be marked as late."
                 : (new Date(assignment.deadline) < new Date() && !assignment.canSubmitLate
                     ? "Deadline has passed. Submissions are no longer accepted."
                     : "You can submit your work before the deadline."),
-            
+
             questionFile: assignment.questionFile ? {
                 originalName: assignment.questionFile.originalName,
                 contentType: assignment.questionFile.contentType
             } : undefined,
+            // THESE ARE THE LINES THAT NEED TO BE *INSIDE* THE OBJECT
+            latestSubmissionTeacherRemark: latestSubmission ? latestSubmission.teacherRemark : "No remarks yet.",
+            latestSubmissionPlagiarismPercent: latestSubmission ? latestSubmission.plagiarismPercent : null, // Make sure this has a comma before it if it's not the last property
+
             submissions: studentSubmissions.map(sub => ({
                 _id: sub._id,
                 fileName: sub.fileName,
                 submittedAt: sub.submittedAt,
-                plagiarismPercent: sub.plagiarismPercent, 
-                teacherRemark: sub.teacherRemark, 
-                status: sub.status, 
-                late: sub.late || false, 
+                plagiarismPercent: sub.plagiarismPercent,
+                teacherRemark: sub.teacherRemark,
+                status: sub.status,
+                late: sub.late || false,
                 fileSize: sub.fileSize,
                 submitted: sub.submitted,
+                // The `teacherRemark` is already explicitly included above from `sub.teacherRemark`
+                // No need for a duplicate `teacherRemark: sub.teacherRemark` here.
             }))
         };
 
