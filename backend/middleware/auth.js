@@ -1,12 +1,19 @@
 const jwt = require("jsonwebtoken");
 
-// Authenticates a user using JWT.
-// Attaches userId and role to the request object if the token is valid.
+/**
+ * Middleware: Authenticate user via JWT.
+ * 
+ * - Verifies the presence and validity of a Bearer token in the Authorization header.
+ * - On success: attaches `userId` and `role` to `req` for downstream use.
+ * - On failure: responds with 401 Unauthorized.
+ * 
+ * @access Private
+ */
 const authenticate = (req, res, next) => {
     const authHeader = req.headers.authorization;
 
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
-        return res.status(401).json({ error: "Unauthorized: No token provided or invalid format." });
+        return res.status(401).json({ error: "Unauthorized: Missing or malformed token." });
     }
 
     const token = authHeader.split(" ")[1];
@@ -17,12 +24,19 @@ const authenticate = (req, res, next) => {
         req.role = decoded.role;
         next();
     } catch (err) {
-        console.error("Authentication error:", err.message);
-        return res.status(401).json({ error: "Unauthorized: Invalid token." });
+        console.error(`Authentication Error: ${err.message}`);
+        return res.status(401).json({ error: "Unauthorized: Invalid or expired token." });
     }
 };
 
-// Allows access only to users with the 'teacher' role.
+/**
+ * Middleware: Authorize access for teacher role.
+ * 
+ * - Ensures the authenticated user has role 'teacher'.
+ * - Responds with 403 Forbidden if not a teacher.
+ * 
+ * @access Private (Teachers only)
+ */
 const requireTeacher = (req, res, next) => {
     if (req.role !== "teacher") {
         return res.status(403).json({ error: "Access denied: Teachers only." });
@@ -30,7 +44,14 @@ const requireTeacher = (req, res, next) => {
     next();
 };
 
-// Allows access only to users with the 'student' role.
+/**
+ * Middleware: Authorize access for student role.
+ * 
+ * - Ensures the authenticated user has role 'student'.
+ * - Responds with 403 Forbidden if not a student.
+ * 
+ * @access Private (Students only)
+ */
 const requireStudent = (req, res, next) => {
     if (req.role !== "student") {
         return res.status(403).json({ error: "Access denied: Students only." });
@@ -38,4 +59,8 @@ const requireStudent = (req, res, next) => {
     next();
 };
 
-module.exports = { authenticate, requireTeacher, requireStudent };
+module.exports = {
+    authenticate,
+    requireTeacher,
+    requireStudent,
+};
