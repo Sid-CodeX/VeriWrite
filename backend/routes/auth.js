@@ -3,7 +3,7 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const fs = require("fs").promises;
 const User = require("../models/User");
-const Classroom = require("../models/Classroom"); 
+const Classroom = require("../models/Classroom");
 const Assignment = require("../models/Assignment");
 const { authenticate } = require("../middleware/auth");
 const OCRonlinecheck = require("../models/OCRonlinecheck");
@@ -11,74 +11,104 @@ const OCRuploadcheck = require("../models/OCRuploadcheck");
 const router = express.Router();
 require("dotenv").config();
 
-// User Signup
+/**
+ * @route POST /auth/signup
+ * @desc Register a new user, return JWT token on success
+ * @access Public
+ */
 router.post("/signup", async (req, res) => {
     try {
         const { name, email, password, role } = req.body;
         const emailLower = email.toLowerCase();
 
+        // Check if email already exists
         if (await User.findOne({ email: emailLower })) {
             return res.status(400).json({ error: "Email already in use" });
         }
 
+        // Hash password
         const hashedPassword = await bcrypt.hash(password, 10);
+
+        // Save new user
         const newUser = new User({ name, email: emailLower, password: hashedPassword, role });
         await newUser.save();
 
-        // --- NEW: Generate JWT token for the newly registered user ---
+        // Generate JWT token
         const token = jwt.sign(
             { userId: newUser._id, role: newUser.role },
             process.env.JWT_SECRET,
             { expiresIn: "1d" }
         );
 
-        // --- NEW: Return the token and user data, similar to login ---
         res.status(201).json({
             message: "User registered successfully!",
             token,
             user: {
-                _id: newUser._id, // Include _id for frontend's User interface 'id'
+                _id: newUser._id,
                 name: newUser.name,
                 email: newUser.email,
                 role: newUser.role,
             },
         });
-
     } catch (error) {
-        console.error("Signup Error:", error); // Log the error for debugging
+        console.error("Signup Error:", error);
         res.status(500).json({ error: "Internal Server Error" });
     }
 });
 
-// User Login
+/**
+ * @route POST /auth/login
+ * @desc Authenticate user, return JWT token on success
+ * @access Public
+ */
 router.post("/login", async (req, res) => {
     try {
         const { email, password } = req.body;
-        const emailLower = email.toLowerCase();  
-        const user = await User.findOne({ email: emailLower });
+        const emailLower = email.toLowerCase();
 
+        // Find user by email
+        const user = await User.findOne({ email: emailLower });
         if (!user || !(await bcrypt.compare(password, user.password))) {
             return res.status(400).json({ error: "Invalid email or password" });
         }
 
         // Generate JWT token
-        const token = jwt.sign({ userId: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: "1d" });
-        res.json({ message: "Login successful", token, user: { name: user.name, email: user.email, role: user.role } });
+        const token = jwt.sign(
+            { userId: user._id, role: user.role },
+            process.env.JWT_SECRET,
+            { expiresIn: "1d" }
+        );
+
+        res.json({
+            message: "Login successful",
+            token,
+            user: {
+                _id: user._id,
+                name: user.name,
+                email: user.email,
+                role: user.role,
+            },
+        });
     } catch (error) {
+        console.error("Login Error:", error);
         res.status(500).json({ error: "Internal Server Error" });
     }
 });
 
-// Logout & Cleanup
+/**
+ * @route POST /auth/logout
+ * @desc Log out user, clean up temporary reports and DB records
+ * @access Private
+ */
 router.post("/logout", authenticate, async (req, res) => {
     try {
-        const teacherId = req.userId;  
+        const teacherId = req.userId;
         const reportPath = `temp/reports/plagiarism_report_${teacherId}.pdf`;
 
-        // Delete the report file if it exists
-        await fs.unlink(reportPath).catch(() => { });
+        // Delete report file if exists
+        await fs.unlink(reportPath).catch(() => { /* Ignore file not found error */ });
 
-        // Also delete extracted text entries from DB
+        // Remove extracted text records related to the user
         await OCRuploadcheck.deleteMany({ teacherId });
         await OCRonlinecheck.deleteMany({ teacherId });
 
@@ -89,48 +119,41 @@ router.post("/logout", authenticate, async (req, res) => {
     }
 });
 
-// Profile Update
+/**
+ * @route PUT /auth/profile
+ * @desc Update user profile (currently name only), reflect in related models
+ * @access Private
+ */
 router.put("/profile", authenticate, async (req, res) => {
     try {
-        const { name } = req.body; 
+        const { name } = req.body;
         const userId = req.userId;
 
-        if (!name || typeof name !== 'string' || name.trim() === '') {
+        if (!name || typeof name !== "string" || name.trim() === "") {
             return res.status(400).json({ error: "Valid name is required for profile update" });
         }
 
-        // 1. Update the User document itself
+        // Update user's name
         const updatedUser = await User.findByIdAndUpdate(
             userId,
-            { name: name.trim() }, // Trim whitespace from name
-            { new: true, select: '_id name email role' }
+            { name: name.trim() },
+            { new: true, select: "_id name email role" }
         );
 
         if (!updatedUser) {
             return res.status(404).json({ error: "User not found" });
         }
 
-        // 2. Update denormalized user data in Classrooms and Assignments
-
-        // Update name in students array of classrooms (if the user is a student)
+        // Propagate name change to classrooms and assignments
         await Classroom.updateMany(
             { "students.studentId": userId },
-            {
-                $set: {
-                    "students.$[elem].name": updatedUser.name,
-                }
-            },
+            { $set: { "students.$[elem].name": updatedUser.name } },
             { arrayFilters: [{ "elem.studentId": userId }] }
         );
 
-        // Update name in submissions array of Assignments (if the user is a student)
         await Assignment.updateMany(
             { "submissions.studentId": userId },
-            {
-                $set: {
-                    "submissions.$[elem].name": updatedUser.name,
-                }
-            },
+            { $set: { "submissions.$[elem].name": updatedUser.name } },
             { arrayFilters: [{ "elem.studentId": userId }] }
         );
 
@@ -141,8 +164,11 @@ router.put("/profile", authenticate, async (req, res) => {
     }
 });
 
-
-// Change Password
+/**
+ * @route PUT /auth/change-password
+ * @desc Change current user's password
+ * @access Private
+ */
 router.put("/change-password", authenticate, async (req, res) => {
     try {
         const { currentPassword, newPassword } = req.body;
@@ -152,11 +178,13 @@ router.put("/change-password", authenticate, async (req, res) => {
             return res.status(400).json({ error: "Incorrect current password" });
         }
 
+        // Update password with hash
         user.password = await bcrypt.hash(newPassword, 10);
         await user.save();
 
         res.json({ message: "Password changed successfully" });
     } catch (error) {
+        console.error("Password Change Error:", error);
         res.status(500).json({ error: "Internal Server Error" });
     }
 });
