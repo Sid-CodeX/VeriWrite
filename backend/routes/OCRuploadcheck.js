@@ -1,3 +1,4 @@
+// Import required modules
 const express = require("express");
 const multer = require("multer");
 const path = require("path");
@@ -11,43 +12,57 @@ const PDFDocument = require("pdfkit");
 const { authenticate, requireTeacher } = require("../middleware/auth");
 
 const router = express.Router();
-const upload = multer({ dest: "temp/" });
+const upload = multer({ dest: "temp/" }); // Configure Multer to store uploaded files temporarily
 
-
-// Function to calculate similarity percentage
+/**
+ * Calculates the percentage of similar words between two texts
+ * @param {string} text1 - First text input
+ * @param {string} text2 - Second text input
+ * @returns {number} Similarity percentage
+ */
 const calculateSimilarity = (text1, text2) => {
     const words1 = new Set(text1.toLowerCase().match(/\b\w+\b/g) || []);
     const words2 = new Set(text2.toLowerCase().match(/\b\w+\b/g) || []);
-
     const commonWords = [...words1].filter(word => words2.has(word));
     return (commonWords.length / Math.max(words1.size, words2.size)) * 100;
 };
 
-// Function to highlight matched words
+/**
+ * Highlights words from 'text' that are found in 'reference'
+ * @param {string} text - The text to process
+ * @param {string} reference - Reference text for matching
+ * @returns {Array} Annotated word list with highlight boolean
+ */
 const highlightMatches = (text, reference) => {
     const words = text.split(/\b/);
     const refWords = new Set(reference.toLowerCase().match(/\b\w+\b/g) || []);
-
     return words.map(word => ({
         text: word,
         highlight: refWords.has(word.toLowerCase())
     }));
 };
 
-// Upload & Check API
-router.post("/upload-and-check", authenticate, requireTeacher, upload.array("files", 10), async (req, res) => { // Added requireTeacher
+/**
+ * POST /upload-and-check
+ * - Accepts multiple files (PDF, DOCX, images)
+ * - Extracts text using OCR or parsers
+ * - Compares text pairwise to detect similarity
+ * - Generates and stores a PDF plagiarism report
+ */
+router.post("/upload-and-check", authenticate, requireTeacher, upload.array("files", 10), async (req, res) => {
     try {
-        if (!req.files || req.files.length === 0) return res.status(400).json({ error: "No files uploaded" });
+        if (!req.files || req.files.length === 0)
+            return res.status(400).json({ error: "No files uploaded" });
 
-        const teacherId = req.userId; 
+        const teacherId = req.userId;
 
-        // Delete previous results before storing new ones
+        // Clean up any previous data
         await OCRuploadcheck.deleteMany({ teacherId });
         await UCresult.deleteMany({ teacherId });
 
         let extractedTexts = [];
 
-        // Extract text from uploaded files
+        // Extract text from all uploaded files
         for (const file of req.files) {
             const filePath = file.path;
             const fileExt = path.extname(file.originalname).toLowerCase();
@@ -66,9 +81,10 @@ router.post("/upload-and-check", authenticate, requireTeacher, upload.array("fil
                     throw new Error(`Unsupported file format: ${file.originalname}`);
                 }
 
-                if (!extractedText.trim()) throw new Error(`No text extracted from ${file.originalname}.`);
+                if (!extractedText.trim())
+                    throw new Error(`No text extracted from ${file.originalname}`);
 
-                // Store extracted text in DB
+                // Save to DB for further comparison
                 const storedText = await OCRuploadcheck.create({
                     teacherId,
                     fileName: file.originalname,
@@ -80,7 +96,7 @@ router.post("/upload-and-check", authenticate, requireTeacher, upload.array("fil
                 console.error(`Error processing ${file.originalname}:`, error);
                 return res.status(500).json({ error: `Error processing ${file.originalname}` });
             } finally {
-                // Delete temporary file
+                // Delete temp file after processing
                 try {
                     await fs.unlink(filePath);
                 } catch (err) {
@@ -91,15 +107,15 @@ router.post("/upload-and-check", authenticate, requireTeacher, upload.array("fil
 
         let results = [];
 
-        // Compare files for plagiarism detection
+        // Compare all pairs of uploaded documents for similarity
         for (let i = 0; i < extractedTexts.length; i++) {
             for (let j = i + 1; j < extractedTexts.length; j++) {
                 const text1 = extractedTexts[i].extractedText;
                 const text2 = extractedTexts[j].extractedText;
 
-                let similarity = text1 === text2 ? 100 : calculateSimilarity(text1, text2);
-                let highlightedText1 = highlightMatches(text1, text2);
-                let highlightedText2 = highlightMatches(text2, text1);
+                const similarity = text1 === text2 ? 100 : calculateSimilarity(text1, text2);
+                const highlightedText1 = highlightMatches(text1, text2);
+                const highlightedText2 = highlightMatches(text2, text1);
 
                 results.push({
                     file1: extractedTexts[i].fileName,
@@ -112,59 +128,61 @@ router.post("/upload-and-check", authenticate, requireTeacher, upload.array("fil
             }
         }
 
-        // Generate PDF Report
+        // Generate a PDF report summarizing all comparisons
         const doc = new PDFDocument({ margin: 50 });
         let pdfBuffers = [];
         doc.on("data", pdfBuffers.push.bind(pdfBuffers));
         doc.on("end", async () => {
             const pdfBuffer = Buffer.concat(pdfBuffers);
 
-            // Store plagiarism results & PDF in DB
+            // Save the report to DB
             await UCresult.create({ teacherId, results, reportFile: pdfBuffer });
 
             res.json({ message: "Plagiarism check completed", results });
         });
 
-        // PDF Content
+        // PDF content setup
         doc.fontSize(18).text("Plagiarism Report", { align: "center", underline: true }).moveDown();
         doc.fontSize(14).text(`Generated on: ${new Date().toLocaleString()}`, { align: "left" }).moveDown();
 
-        // Add plagiarism comparison details in PDF
         results.forEach((result, index) => {
-            doc.fillColor("black").fontSize(18).text(`Comparison ${index + 1}`, { bold: true, align: "left" }).moveDown();
-            doc.fillColor("blue").fontSize(12).text(`File 1: ${result.file1}`, { align: "left" });
-            doc.fillColor("blue").fontSize(12).text(`File 2: ${result.file2}`, { align: "left" });
-            doc.fillColor("black").fontSize(12).text(`Similarity: ${result.similarity} (${result.level})`, { align: "left" }).moveDown();
+            doc.fillColor("black").fontSize(18).text(`Comparison ${index + 1}`, { bold: true }).moveDown();
+            doc.fillColor("blue").fontSize(12).text(`File 1: ${result.file1}`);
+            doc.text(`File 2: ${result.file2}`);
+            doc.fillColor("black").text(`Similarity: ${result.similarity} (${result.level})`).moveDown();
 
-            doc.fillColor("red").fontSize(14).text("Matched Content:", { align: "left" }).moveDown();
+            doc.fillColor("red").fontSize(14).text("Matched Content:").moveDown();
             doc.fillColor("black").font("Courier");
 
-            // Highlight matching words in PDF
-            doc.fillColor("blue").fontSize(14).text(`Matched Content from ${result.file1}:`, { align: "left" }).moveDown();
+            // Text from file 1 with highlights
+            doc.fillColor("blue").fontSize(14).text(`Matched Content from ${result.file1}:`).moveDown();
             result.text1.forEach(word => {
-                doc.fillColor(word.highlight ? "red" : "black").text(word.text, { continued: true, align: "left" });
+                doc.fillColor(word.highlight ? "red" : "black").text(word.text, { continued: true });
             });
             doc.moveDown(2);
 
-            doc.fillColor("blue").fontSize(14).text(`Matched Content from ${result.file2}:`, { align: "left" }).moveDown();
+            // Text from file 2 with highlights
+            doc.fillColor("blue").text(`Matched Content from ${result.file2}:`).moveDown();
             result.text2.forEach(word => {
-                doc.fillColor(word.highlight ? "red" : "black").text(word.text, { continued: true, align: "left" });
+                doc.fillColor(word.highlight ? "red" : "black").text(word.text, { continued: true });
             });
             doc.moveDown(2);
         });
 
         doc.end();
-
     } catch (error) {
         console.error("Plagiarism Check Error:", error);
         res.status(500).json({ error: "Internal Server Error" });
     }
 });
 
-// Download Report API
-router.get("/download-report", authenticate, requireTeacher, async (req, res) => { 
+/**
+ * GET /download-report
+ * Downloads the most recent plagiarism report for the logged-in teacher
+ */
+router.get("/download-report", authenticate, requireTeacher, async (req, res) => {
     try {
-        const report = await UCresult.findOne({ teacherId: req.userId }); 
+        const report = await UCresult.findOne({ teacherId: req.userId });
         if (!report) return res.status(400).json({ error: "No report found" });
 
         res.setHeader("Content-Disposition", 'attachment; filename="plagiarism_report.pdf"');
@@ -176,8 +194,11 @@ router.get("/download-report", authenticate, requireTeacher, async (req, res) =>
     }
 });
 
-// View Report(Opens in Browser)
-router.get("/view-report", authenticate, requireTeacher, async (req, res) => { 
+/**
+ * GET /view-report
+ * Opens the plagiarism report directly in the browser for the logged-in teacher
+ */
+router.get("/view-report", authenticate, requireTeacher, async (req, res) => {
     try {
         const report = await UCresult.findOne({ teacherId: req.userId });
         if (!report) return res.status(400).json({ error: "No report found" });
