@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { PlusCircle, Users, Link2, FileText, Search } from 'lucide-react';
+import { PlusCircle, Users, Link2, FileText, Search, XCircle, Copy } from 'lucide-react'; // Added XCircle and Copy
 import { useToast } from '@/hooks/use-toast';
 
 import Navbar from '@/components/Navbar';
@@ -15,7 +15,7 @@ interface Course {
   students: number;
   assignments: number;
   color: string;
-  inviteLink?: string; // Add inviteLink for teacher's view
+  inviteCode?: string; 
 }
 
 const Classroom = () => {
@@ -27,9 +27,9 @@ const Classroom = () => {
   const [courseName, setCourseName] = useState('');
   const [courseDescription, setCourseDescription] = useState('');
   const [courses, setCourses] = useState<Course[]>([]);
-  const [showGenerateLink, setShowGenerateLink] = useState(false);
+  const [showClassCodeModal, setShowClassCodeModal] = useState(false); 
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
-  const [generatedLink, setGeneratedLink] = useState('');
+  const [classCodeToDisplay, setClassCodeToDisplay] = useState(''); 
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -73,7 +73,6 @@ const Classroom = () => {
       if (user.role === 'teacher') {
         endpoint = `${API_BASE_URL}/api/courses/teacher-classrooms`;
       } else if (user.role === 'student') {
-       
         // You'll need a route like: GET /api/student/classrooms in your backend
         endpoint = `${API_BASE_URL}/api/student/classrooms`; // Placeholder for student route
       } else {
@@ -103,8 +102,8 @@ const Classroom = () => {
         description: classroom.description,
         students: classroom.numStudents,
         assignments: classroom.numAssignments,
-        color: getRandomColorClass(), // Assign a random color 
-        inviteLink: classroom.inviteLink 
+        color: getRandomColorClass(), 
+        inviteCode: classroom.inviteCode 
       }));
       setCourses(fetchedCourses);
 
@@ -175,7 +174,7 @@ const Classroom = () => {
         students: 0, 
         assignments: 0, 
         color: getRandomColorClass(), 
-        inviteLink: newBackendCourse.inviteLink, 
+        inviteCode: newBackendCourse.inviteCode, 
       };
 
       setCourses(prev => [newCourse, ...prev]);
@@ -197,30 +196,27 @@ const Classroom = () => {
     }
   };
 
-  // 3. Generate Invite Link (Teacher Only)
-  // This function will display the already generated inviteLink from the course object
-  const handleGenerateLink = (course: Course) => {
-    if (course.inviteLink) {
+  // 3. Show Class Code (Teacher Only) - Renamed for clarity
+  const handleShowClassCode = (course: Course) => {
+    if (course.inviteCode) {
       setSelectedCourse(course);
-      setShowGenerateLink(true);
-      // Construct the full URL using the inviteLink from the backend
-      // Assuming your join route pattern is `/join/:courseId/:inviteCode`
-      setGeneratedLink(`${API_BASE_URL}/join/${course.id}/${course.inviteLink}`);
+      setClassCodeToDisplay(course.inviteCode); 
+      setShowClassCodeModal(true); 
     } else {
       toast({
-        title: "No Invite Link",
-        description: "This course does not have an invitation link.",
+        title: "No Class Code", // Updated toast title
+        description: "This course does not have a class code.", // Updated toast description
         variant: "destructive",
       });
     }
   };
 
-
-  const handleCopyLink = () => {
-    navigator.clipboard.writeText(generatedLink);
+  // Renamed for clarity
+  const handleCopyCode = () => {
+    navigator.clipboard.writeText(classCodeToDisplay); 
     toast({
-      title: "Link copied",
-      description: "Invitation link copied to clipboard",
+      title: "Code copied",
+      description: "Class code copied to clipboard",
     });
   };
 
@@ -229,6 +225,7 @@ const Classroom = () => {
       title: "Join class",
       description: "Please enter the class code provided by your teacher",
     });
+    // TODO: Implement the modal/form for students to enter a class code
     // Then make an API call to your backend: POST /api/student/join-course
   };
 
@@ -327,32 +324,32 @@ const Classroom = () => {
             </GlassmorphismCard>
           )}
 
-          {/* Generate link modal */}
-          {showGenerateLink && selectedCourse && (
+          {/* Class Code modal (formerly "Generate link modal") */}
+          {showClassCodeModal && selectedCourse && (
             <GlassmorphismCard className="mb-8 p-6 animate-fade-in">
               <div className="flex justify-between items-start mb-4">
-                <h2 className="text-xl font-bold">Invitation Link</h2>
+                <h2 className="text-xl font-bold">Class Code</h2> {/* Updated title */}
                 <button
-                  onClick={() => setShowGenerateLink(false)}
+                  onClick={() => setShowClassCodeModal(false)}
                   className="text-muted-foreground hover:text-foreground"
                 >
-                  ✕
+                  <XCircle className="h-6 w-6" /> {/* Using Lucide XCircle icon */}
                 </button>
               </div>
-              <p className="mb-4">Share this link with students to join <strong>{selectedCourse.name}</strong>:</p>
+              <p className="mb-4">Share this code with students to join <strong>{selectedCourse.name}</strong>:</p> {/* Updated text */}
               <div className="flex gap-2 mb-4">
                 <input
                   type="text"
                   className="flex-grow p-2 border border-border rounded-md bg-background"
-                  value={generatedLink}
+                  value={classCodeToDisplay}
                   readOnly
                 />
-                <CustomButton onClick={handleCopyLink}>
-                  Copy
+                <CustomButton onClick={handleCopyCode} icon={<Copy className="h-4 w-4" />}> {/* Updated handler and added Copy icon */}
+                  Copy Code {/* Updated button text */}
                 </CustomButton>
               </div>
               <p className="text-sm text-muted-foreground">
-                This link will allow students to directly join this course.
+                Students can use this code to join your course from the "Join Class" option.
               </p>
             </GlassmorphismCard>
           )}
@@ -400,10 +397,10 @@ const Classroom = () => {
                             <CustomButton
                               variant="secondary"
                               fullWidth
-                              onClick={() => handleGenerateLink(course)}
+                              onClick={() => handleShowClassCode(course)} // Updated handler call
                               icon={<Link2 className="h-4 w-4" />}
                             >
-                              Invite Students
+                              Show Class Code {/* Updated button text */}
                             </CustomButton>
                           )}
                         </div>
