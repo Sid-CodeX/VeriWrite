@@ -18,7 +18,7 @@ const classroomSchema = new mongoose.Schema({
   numAssignments: { type: Number, default: 0 },
   numExams: { type: Number, default: 0 },
 
-  inviteLink: { type: String, unique: true },
+  classCode: { type: String, unique: true }, 
 
   blockedUsers: [{
     userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },

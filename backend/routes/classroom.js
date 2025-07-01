@@ -21,13 +21,13 @@ router.post("/create-classroom", authenticate, requireTeacher, async (req, res) 
             return res.status(400).json({ error: "Course name is required" });
         }
 
-        const inviteLink = nanoid(10);
+        const classCode = nanoid(10); 
 
         const newClassroom = new Classroom({
             name,
             description,
             teacherId,
-            inviteLink,
+            classCode, 
             students: [],
             numStudents: 0,
             numAssignments: 0,
@@ -42,7 +42,7 @@ router.post("/create-classroom", authenticate, requireTeacher, async (req, res) 
                 id: newClassroom._id,
                 name: newClassroom.name,
                 description: newClassroom.description,
-                inviteLink: newClassroom.inviteLink,
+                inviteCode: newClassroom.classCode,
             },
         });
     } catch (error) {
@@ -73,7 +73,7 @@ router.get("/teacher-classrooms", authenticate, requireTeacher, async (req, res)
                 description: c.description,
                 numStudents: c.numStudents,
                 numAssignments: c.numAssignments,
-                inviteLink: c.inviteLink,
+                inviteCode: c.inviteCode, 
             })),
         });
     } catch (error) {
