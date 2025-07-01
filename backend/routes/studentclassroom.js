@@ -89,30 +89,36 @@ router.post("/join", authenticate, requireStudent, async (req, res) => {
         const studentId = req.userId;
         const { classCode } = req.body;
 
+        // Validate presence of class code
         if (!classCode) {
             return res.status(400).json({ error: "Class code is required" });
         }
 
-        const classroom = await Classroom.findOne({ inviteLink: classCode }).populate("assignments");
+        // Find classroom using class code and populate assignments
+        const classroom = await Classroom.findOne({ classCode: classCode }).populate("assignments");
 
+        // Handle classroom not found
         if (!classroom) {
-            return res.status(404).json({ error: "Classroom not found" });
+            return res.status(404).json({ error: "Classroom not found with the provided code." });
         }
 
+        // Check if student is blocked from the classroom
         if (classroom.blockedUsers.some(u => u.userId.equals(studentId))) {
             return res.status(403).json({ error: "You are blocked from this class." });
         }
 
+        // Prevent duplicate enrollment
         if (classroom.students.some(s => s.studentId.equals(studentId))) {
             return res.status(409).json({ message: "Already enrolled in this class." });
         }
 
+        // Retrieve student details
         const student = await User.findById(studentId);
         if (!student) {
             return res.status(404).json({ error: "Student not found" });
         }
 
-        // Add student to classroom
+        // Add student to the classroom
         classroom.students.push({
             studentId,
             name: student.name,
@@ -120,8 +126,11 @@ router.post("/join", authenticate, requireStudent, async (req, res) => {
         });
         classroom.numStudents += 1;
 
-        // Add empty submission for each assignment
+        // Create empty submission record for each assignment
         for (const assignment of classroom.assignments) {
+            if (!assignment.submissions) {
+                assignment.submissions = [];
+            }
             assignment.submissions.push({
                 studentId,
                 name: student.name,
@@ -131,14 +140,16 @@ router.post("/join", authenticate, requireStudent, async (req, res) => {
             await assignment.save();
         }
 
+        // Save updated classroom document
         await classroom.save();
 
-        res.status(200).json({ message: "Successfully joined the class!" });
+        res.status(200).json({ message: `Successfully joined ${classroom.name}!` });
     } catch (error) {
         console.error("Error joining class:", error);
         res.status(500).json({ error: "Internal server error" });
     }
 });
+
 
 // View classroom route
 router.get("/:classroomId", authenticate, requireStudent, async (req, res) => {
