@@ -266,6 +266,10 @@ router.get("/view/:assignmentId", authenticate, requireTeacher, async (req, res)
             studentSubmissions,
             canSubmitLate: assignment.canSubmitLate, 
             questionFile: !!assignment.questionFile, 
+            classroomId: {
+                _id: assignment.classroomId._id,
+                name: assignment.classroomId.name
+            }
         });
     } catch (error) {
         console.error("Error fetching assignment view:", error);
