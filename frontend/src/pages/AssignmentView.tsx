@@ -11,7 +11,9 @@ import PlagiarismReportModal from '@/components/PlagiarismReportModal';
 import ExtractedTextModal from '@/components/ExtractedTextModal';
 import { format } from 'date-fns';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL; // Assuming you have this env variable for your API base URL
+// IMPORTANT: Replace 'fetch' with your custom 'api' instance from '@/lib/api'
+// import api from '@/lib/api'; // <--- Make sure you have this import
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL; // Still useful for non-Axios calls or reference
 
 // --- Interfaces (Consider moving these to a shared types file like src/types/assignment.ts) ---
 interface MatchDetail {
@@ -140,6 +142,8 @@ const AssignmentView = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+    // State to control visibility of download report button
+    const [showDownloadReportButton, setShowDownloadReportButton] = useState(false); // Set to false to hide by default
 
     useEffect(() => {
         window.scrollTo(0, 0);
@@ -160,11 +164,16 @@ const AssignmentView = () => {
             if (!token) {
                 setError("You are not logged in. Please log in to view assignment details.");
                 console.error("No authentication token found. Redirecting to login.");
-                setTimeout(() => navigate('/api/auth/login'), 2000);
+                // Use navigate('/auth') instead of '/api/auth/login' for frontend routing
+                setTimeout(() => navigate('/auth'), 2000);
                 setLoading(false);
                 return;
             }
 
+            // --- FIX: Use axios or your custom 'api' instance here for consistency and interceptor benefits ---
+            // If you've set up '@/lib/api', uncomment the line below and remove the fetch call
+            // import api from '@/lib/api';
+            // const response = await api.get(`/api/assignment/view/${assignmentId}`);
             const response = await fetch(`${API_BASE_URL}/api/assignment/view/${assignmentId}`, {
                 method: 'GET',
                 headers: {
@@ -180,7 +189,8 @@ const AssignmentView = () => {
                 if (response.status === 401) {
                     errorMessage = "Unauthorized: Your session may have expired. Please log in again.";
                     localStorage.removeItem('token');
-                    setTimeout(() => navigate('/api/auth/login'), 2000);
+                    // Use navigate('/auth') instead of '/api/auth/login' for frontend routing
+                    setTimeout(() => navigate('/auth'), 2000);
                 } else if (response.status === 403) {
                     errorMessage = "Forbidden: You do not have permission to view this assignment.";
                 } else if (response.status === 404) {
@@ -191,6 +201,7 @@ const AssignmentView = () => {
             }
 
             const data = await response.json();
+            console.log("Fetched Assignment Details Data:", data); // LOG: Inspect this for 'classroomId' structure
 
             setAssignment({
                 id: assignmentId,
@@ -201,9 +212,14 @@ const AssignmentView = () => {
                 canSubmitLate: data.canSubmitLate ?? true,
             });
 
+            // --- FIX: Ensure course name is correctly extracted ---
+            // Your backend's /api/assignment/view/:assignmentId route should return classroomId.name
+            // If it returns classroomId as an object that contains name, this is correct.
+            // If classroomId is just an ID string, you'd need to fetch course details separately.
+            // Assuming data.classroomId.name is available as per your backend route's population.
             setCourse({
-                id: courseId || 'unknown-course',
-                name: data.classroomId?.name || 'Unknown Course',
+                id: courseId || data.classroomId?._id || 'unknown-course', // Fallback for ID
+                name: data.classroomId?.name || 'Unknown Course', // This is the key fix for "Unknown Course"
             });
 
             const mappedStudents: Student[] = data.studentSubmissions.map((sub: StudentSubmissionBackend) => ({
@@ -233,14 +249,14 @@ const AssignmentView = () => {
         } finally {
             setLoading(false);
         }
-    }, [assignmentId, courseId, toast, navigate]);
+    }, [assignmentId, courseId, toast, navigate]); // Added navigate to dependencies
 
     useEffect(() => {
         fetchAssignmentDetails();
     }, [fetchAssignmentDetails]);
 
     // Handler to update a student's remark in the local state
-    const handleRemarkUpdated = useCallback((studentId: string, newRemark: string) => {
+    const handleRemarkUpdated = useCallback(async (studentId: string, newRemark: string) => { // Made async
         setStudents(prevStudents =>
             prevStudents.map(student =>
                 student.studentUserId === studentId
@@ -253,7 +269,14 @@ const AssignmentView = () => {
             description: "Student remark updated successfully.",
             variant: "success",
         });
-    }, [toast]);
+
+        // --- FIX: Force a re-fetch of assignment details after remark update ---
+        // This ensures the AssignmentView and all its child components (like the modal itself when re-opened,
+        // or any other part of the UI that displays remarks) get the latest data from the server.
+        await fetchAssignmentDetails(); // Call fetchAssignmentDetails to re-fetch all data
+        // --- END FIX ---
+
+    }, [toast, fetchAssignmentDetails]); // Add fetchAssignmentDetails to dependencies
 
 
     const handleCheckAllPlagiarism = async () => {
@@ -282,6 +305,8 @@ const AssignmentView = () => {
                 variant: "default",
             });
 
+            // --- FIX: Use axios or your custom 'api' instance here for consistency and interceptor benefits ---
+            // const response = await api.post(`/api/assignment/check-plagiarism/${assignmentId}`);
             const response = await fetch(`${API_BASE_URL}/api/assignment/check-plagiarism/${assignmentId}`, {
                 method: 'POST',
                 headers: {
@@ -297,7 +322,8 @@ const AssignmentView = () => {
                 if (response.status === 401) {
                     errorMessage = "Unauthorized: Your session may have expired. Please log in again.";
                     localStorage.removeItem('token');
-                    setTimeout(() => navigate('/api/auth/login'), 2000);
+                    // Use navigate('/auth') instead of '/api/auth/login' for frontend routing
+                    setTimeout(() => navigate('/auth'), 2000);
                 } else if (response.status === 400) {
                     errorMessage = `Bad Request: ${errorData.error || errorData.message || 'Invalid request'}`;
                 }
@@ -341,6 +367,8 @@ const AssignmentView = () => {
                 variant: "default",
             });
 
+            // --- FIX: Use axios or your custom 'api' instance here for consistency and interceptor benefits ---
+            // const response = await api.get(`/api/plagiarism-reports/${assignmentId}/${studentUserId}/download`, { responseType: 'blob' });
             const response = await fetch(`${API_BASE_URL}/api/plagiarism-reports/${assignmentId}/${studentUserId}/download`, {
                 method: 'GET',
                 headers: {
@@ -403,10 +431,10 @@ const AssignmentView = () => {
         }
         // Pass the assignmentId along with the student data
         if (assignmentId) {
-             setSelectedStudentForReport({ ...student, assignmentId: assignmentId });
-             setShowReportModal(true);
+            setSelectedStudentForReport({ ...student, assignmentId: assignmentId });
+            setShowReportModal(true);
         } else {
-             toast({
+            toast({
                 title: "Error",
                 description: "Assignment ID is missing, cannot open report.",
                 variant: "destructive",
@@ -466,13 +494,24 @@ const AssignmentView = () => {
         );
     }
 
+    // --- Start of JSX rendering ---
+    // This block handles the case where assignment or course data might be null after loading
+    // (e.g., if an error occurred but was caught, or if data is truly not found)
     if (!assignment || !course) {
         return (
             <div className="min-h-screen flex flex-col">
                 <Navbar />
                 <main className="flex-grow pt-24 pb-16 px-6">
-                    <div className="container max-w-6xl mx-auto">
-                        <p>Assignment or Course details not found after loading.</p>
+                    <div className="container max-w-6xl mx-auto text-center">
+                        <p className="text-lg text-muted-foreground">Assignment or Course details not found after loading.</p>
+                        <CustomButton
+                            variant="outline"
+                            size="sm"
+                            onClick={() => navigate(`/classroom/${courseId}`)}
+                            className="mt-4"
+                        >
+                            Back to Course
+                        </CustomButton>
                     </div>
                 </main>
                 <Footer />
@@ -663,20 +702,24 @@ const AssignmentView = () => {
                                                             >
                                                                 View
                                                             </CustomButton>
-                                                            <CustomButton
-                                                                variant="outline"
-                                                                size="sm"
-                                                                icon={<Download className="h-3.5 w-3.5" />}
-                                                                onClick={() => handleDownloadPlagiarismPdf(
-                                                                    student.studentUserId,
-                                                                    student.name,
-                                                                    assignment.title
-                                                                )}
-                                                                loading={isGeneratingPdf}
-                                                                disabled={isGeneratingPdf}
-                                                            >
-                                                                {isGeneratingPdf ? 'Downloading...' : 'Download'}
-                                                            </CustomButton>
+                                                            {/* --- HIDE DOWNLOAD REPORT BUTTON --- */}
+                                                            {showDownloadReportButton && ( // Only render if showDownloadReportButton is true
+                                                                <CustomButton
+                                                                    variant="outline"
+                                                                    size="sm"
+                                                                    icon={<Download className="h-3.5 w-3.5" />}
+                                                                    onClick={() => handleDownloadPlagiarismPdf(
+                                                                        student.studentUserId,
+                                                                        student.name,
+                                                                        assignment.title
+                                                                    )}
+                                                                    loading={isGeneratingPdf}
+                                                                    disabled={isGeneratingPdf}
+                                                                >
+                                                                    {isGeneratingPdf ? 'Downloading...' : 'Download'}
+                                                                </CustomButton>
+                                                            )}
+                                                            {/* --- END HIDE --- */}
                                                         </div>
                                                     ) : (
                                                         student.submissionDate ? (
