@@ -42,7 +42,7 @@ router.post("/create-classroom", authenticate, requireTeacher, async (req, res) 
                 id: newClassroom._id,
                 name: newClassroom.name,
                 description: newClassroom.description,
-                inviteCode: newClassroom.classCode,
+                classCode: newClassroom.classCode,
             },
         });
     } catch (error) {
@@ -73,7 +73,7 @@ router.get("/teacher-classrooms", authenticate, requireTeacher, async (req, res)
                 description: c.description,
                 numStudents: c.numStudents,
                 numAssignments: c.numAssignments,
-                inviteCode: c.inviteCode, 
+                classCode: c.classCode, 
             })),
         });
     } catch (error) {
