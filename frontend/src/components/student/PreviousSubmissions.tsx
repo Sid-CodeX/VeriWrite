@@ -12,27 +12,27 @@ import { Badge } from '@/components/ui/badge';
 interface StudentSubmission {
     _id: string;
     fileName: string;
-    fileSize: number; // Added fileSize to match the props type
+    fileSize: number;
     submittedAt: Date;
-    status: 'processing' | 'checked' | 'error';
+    status?: 'processing' | 'checked' | 'error'; // Made optional to match StudentAssignmentView.tsx's PreviousSubmissionPropsType
     similarity?: number;
     late?: boolean;
     score?: number;
     teacherRemark?: string;
-    submitted: boolean; // IMPORTANT: Ensure this is present
+    submitted: boolean;
 }
 
 interface PreviousSubmissionsProps {
     submissions: StudentSubmission[];
-    assignmentType: 'Assignment' | 'Exam'; // <--- ADD THIS LINE to PreviousSubmissionsProps
-    onDownloadSubmission: (submissionId: string) => void;
+    assignmentType: 'Assignment' | 'Exam';
+    // Removed onDownloadSubmission prop as the download button is removed
     // onDeleteSubmission?: (submissionId: string) => void; // If you add this functionality later
 }
 
 const PreviousSubmissions: React.FC<PreviousSubmissionsProps> = ({
     submissions,
-    assignmentType, // Destructure the new prop
-    onDownloadSubmission,
+    assignmentType,
+    // Removed onDownloadSubmission from destructuring
     // onDeleteSubmission,
 }) => {
 
@@ -71,13 +71,14 @@ const PreviousSubmissions: React.FC<PreviousSubmissionsProps> = ({
                                         File Size: {formatFileSize(submission.fileSize)}
                                     </p>
                                     <div className="flex items-center gap-2 mt-2">
+                                        {/* Conditionally render based on status */}
                                         {submission.status === 'checked' && (
                                             <>
                                                 <Badge variant="default" className="bg-green-500 hover:bg-green-600">
                                                     <CheckCircle className="h-3 w-3 mr-1" /> Checked
                                                 </Badge>
                                                 {assignmentType === 'Assignment' && typeof submission.similarity === 'number' && (
-                                                    <Badge variant={submission.similarity > 20 ? "destructive" : "secondary"}>
+                                                    <Badge variant={submission.similarity !== undefined && submission.similarity > 20 ? "destructive" : "secondary"}>
                                                         Plagiarism: {submission.similarity}%
                                                     </Badge>
                                                 )}
@@ -98,9 +99,12 @@ const PreviousSubmissions: React.FC<PreviousSubmissionsProps> = ({
                                                 <XCircle className="h-3 w-3 mr-1" /> Error
                                             </Badge>
                                         )}
+                                        {/* Removed the 'Status: N/A' badge condition */}
                                     </div>
                                 </div>
                                 <div className="flex gap-2">
+                                    {/* Removed the Download Button as per requirement */}
+                                    {/*
                                     <Button
                                         variant="outline"
                                         size="sm"
@@ -108,6 +112,7 @@ const PreviousSubmissions: React.FC<PreviousSubmissionsProps> = ({
                                     >
                                         <Download className="h-4 w-4 mr-2" /> Download
                                     </Button>
+                                    */}
                                     {/* Add a view button if you have a viewer service */}
                                     {/* <Button variant="outline" size="sm">
                                         <ExternalLink className="h-4 w-4 mr-2" /> View
