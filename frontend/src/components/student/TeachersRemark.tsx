@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { MessageCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import GlassmorphismCard from '@/components/ui/GlassmorphismCard';
@@ -10,11 +9,16 @@ interface TeachersRemarkProps {
 const TeachersRemark = ({ remark }: TeachersRemarkProps) => {
   const [isOpen, setIsOpen] = useState(false);
 
-  if (!remark) return null;
+  // This condition now only checks if `remark` is truly null or undefined.
+  // If `remark` is "No remarks" (a string), this condition will be false,
+  // and the component will proceed to render, displaying "No remarks" inside.
+  if (remark === null || remark === undefined) {
+    return null;
+  }
 
   return (
     <GlassmorphismCard className="p-6 mb-6">
-      <button 
+      <button
         onClick={() => setIsOpen(!isOpen)}
         className="w-full flex items-center justify-between"
       >
@@ -28,11 +32,11 @@ const TeachersRemark = ({ remark }: TeachersRemarkProps) => {
           <ChevronDown className="h-5 w-5 text-muted-foreground" />
         )}
       </button>
-      
+
       {isOpen && (
         <div className="mt-4 pt-4 border-t border-border/50">
           <div className="prose prose-sm max-w-none text-muted-foreground whitespace-pre-line">
-            {remark}
+            {remark} {/* This will display the actual remark or "No remarks" */}
           </div>
         </div>
       )}
