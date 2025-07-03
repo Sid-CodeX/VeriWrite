@@ -14,7 +14,7 @@ import ExamResult from '@/components/student/ExamResult';
 import FileUploader from '@/components/student/FileUploader';
 import PreviousSubmissions from '@/components/student/PreviousSubmissions';
 import SubmissionStatusSidebar from '@/components/student/SubmissionStatusSidebar';
-import TeachersRemark from '@/components/student/TeachersRemark';
+import TeachersRemark from '@/components/student/TeachersRemark'; // Ensure this path is correct
 
 // INTERFACES
 interface StudentSubmission {
@@ -23,15 +23,15 @@ interface StudentSubmission {
     fileSize: number;
     submittedAt: string;
     plagiarismPercent?: number | null;
-    teacherRemark?: string;
-    score?: number; // Not currently using in schema, later can be included if needed
-    markDistribution?: { // This is also not using currently, for exams, we can consider adding this
+    teacherRemark?: string | null; // Changed to allow null
+    score?: number;
+    markDistribution?: {
         section: string;
         maxMarks: number;
         scored: number;
     }[];
-    status?: 'processing' | 'checked' | 'error';
-    late: boolean; 
+    status?: 'processing' | 'checked' | 'error'; // Keeping this as optional as per the error analysis
+    late: boolean;
     submitted: boolean;
 }
 
@@ -47,7 +47,7 @@ interface AssignmentDetailsResponse {
     type: 'Assignment' | 'Exam';
     deadline: string;
     deadlinePassed: boolean;
-    canSubmitLate: boolean; 
+    canSubmitLate: boolean;
     message: string;
     submissionGuidelines: string[];
     questionFile?: {
@@ -55,21 +55,24 @@ interface AssignmentDetailsResponse {
         contentType: string;
     };
     submissions: StudentSubmission[];
-    // The submissionStatus from backend will now correctly reflect 'Submitted (Late)'
     submissionStatus: 'Submitted' | 'Pending' | 'Not Submitted' | 'Overdue' | 'Submitted (Late)';
     submittedAt: string | null;
     fileName: string | null;
+    // Add these if they are consistently part of the main assignment object from the backend
+    latestSubmissionTeacherRemark?: string | null; // Ensure this is available at the top level if used
+    latestSubmissionPlagiarismPercent?: number | null; // Ensure this is available at the top level if used
 }
 
 // Ensure this matches the props expected by PreviousSubmissions component
+// IMPORTANT: 'status' is now optional to resolve the TypeScript error.
 interface PreviousSubmissionPropsType {
     _id: string;
     fileName: string;
     fileSize: number;
     submittedAt: Date;
-    status?: 'processing' | 'checked' | 'error';
+    status?: 'processing' | 'checked' | 'error'; // Made optional to match the incoming data
     similarity?: number | null;
-    late?: boolean; 
+    late?: boolean;
     score?: number;
     teacherRemark?: string;
     submitted: boolean;
@@ -84,18 +87,18 @@ interface AssignmentDetailsPropsType {
     submittedAt?: Date;
     description?: string;
     type: 'Assignment' | 'Exam';
-    submissionLate?: boolean; 
+    submissionLate?: boolean;
     questionFile?: { originalName: string };
     onDownloadQuestionFile: () => void;
     onViewQuestionFile: () => void;
-    isPastDeadline: boolean; 
+    isPastDeadline: boolean;
 }
 
 
 // Helper function for plagiarism classification
 const getPlagiarismCategory = (percent: number | null | undefined): string => {
     if (percent === undefined || percent === null) {
-        return "N/A"; 
+        return "N/A";
     }
     if (percent >= 50) return "High";
     if (percent >= 20) return "Medium";
@@ -163,8 +166,8 @@ const StudentAssignmentView: React.FC = () => {
 
             const data = response.data;
             setAssignment(data);
-            // Filter out submissions that are not truly submitted 
-            // and sort them by submission time
+            // Filter out submissions that are not truly submitted
+            // and sort them by submission time (most recent first)
             const filteredAndSortedSubmissions = (data.submissions || [])
                 .filter(s => s.submitted && s.submittedAt && new Date(s.submittedAt).getTime() > 0)
                 .sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
@@ -415,65 +418,7 @@ const StudentAssignmentView: React.FC = () => {
         }
     };
 
-    const handleDownloadSubmission = useCallback(async (submissionId: string) => {
-        try {
-            const token = getAuthToken();
-            if (!token) {
-                toast({
-                    title: "Authentication Required",
-                    description: "Please log in to download submissions.",
-                    variant: "destructive",
-                });
-                navigate('/login');
-                return;
-            }
-
-            const response = await axios.get(`${API_BASE_URL}/api/studentassignment/submission/download/${submissionId}`, {
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                },
-                responseType: 'blob',
-            });
-
-            const submission = submissions.find(sub => sub._id === submissionId);
-            const fileName = submission?.fileName || `submission_${submissionId}.pdf`;
-
-            const url = window.URL.createObjectURL(new Blob([response.data]));
-            const link = document.createElement('a');
-            link.href = url;
-            link.setAttribute('download', fileName);
-            document.body.appendChild(link);
-            link.click();
-            link.remove();
-            window.URL.revokeObjectURL(url);
-
-            toast({
-                title: "Download Initiated",
-                description: `Downloading "${fileName}"...`,
-                variant: "default",
-            });
-
-        } catch (err) {
-            console.error("Error downloading submission file:", err);
-            if (axios.isAxiosError(err) && err.response) {
-                const errorMessage = err.response.data.error || "Could not download the submission file. Please try again.";
-                toast({
-                    title: "Download Failed",
-                    description: errorMessage,
-                    variant: "destructive",
-                });
-                if (err.response.status === 401 || err.response.status === 403) {
-                    navigate('/login');
-                }
-            } else {
-                toast({
-                    title: "Download Failed",
-                    description: "An unexpected error occurred during download.",
-                    variant: "destructive",
-                });
-            }
-        }
-    }, [API_BASE_URL, toast, submissions, getAuthToken, navigate]);
+    // Removed handleDownloadSubmission as it's no longer used or passed to PreviousSubmissions
 
     if (loading) {
         return (
@@ -542,7 +487,6 @@ const StudentAssignmentView: React.FC = () => {
         ? new Date(assignment.submittedAt)
         : undefined;
 
-    // Use the values from `assignment` directly, as they are now accurately coming from the backend
     const assignmentDetailsProps: AssignmentDetailsPropsType = {
         id: assignment.assignmentId,
         title: assignment.title,
@@ -550,42 +494,30 @@ const StudentAssignmentView: React.FC = () => {
         deadline: new Date(assignment.deadline),
         submitted: assignment.submissionStatus.includes('Submitted'),
         submittedAt: validSubmittedAtDate,
-        submissionLate: assignment.latestSubmissionIsLate, 
+        submissionLate: assignment.latestSubmissionIsLate,
         questionFile: questionFileDisplayName ? { originalName: questionFileDisplayName } : undefined,
         onDownloadQuestionFile: handleDownloadQuestionFile,
         onViewQuestionFile: handleViewQuestionFile,
-        isPastDeadline: assignment.deadlinePassed, 
+        isPastDeadline: assignment.deadlinePassed,
         type: assignment.type,
     };
 
-    // The 'submissions' state is already filtered and sorted from fetchAssignmentDetails.
-    // Just map it to PreviousSubmissionPropsType
     const filteredAndMappedSubmissions: PreviousSubmissionPropsType[] = submissions.map(sub => ({
         _id: sub._id,
         fileName: sub.fileName,
         fileSize: typeof sub.fileSize === 'number' ? sub.fileSize : 0,
         submittedAt: new Date(sub.submittedAt),
-        status: sub.status,
+        status: sub.status, // This is now correctly handled as optional in PreviousSubmissionPropsType
         similarity: sub.plagiarismPercent,
-        late: sub.late, 
+        late: sub.late,
         score: sub.score,
-        teacherRemark: sub.teacherRemark,
+        teacherRemark: sub.teacherRemark || undefined,
         submitted: sub.submitted,
     }));
 
-    // The latest submission is simply the first one in the 'submissions' state due to prior sorting
     const latestSubmission = submissions.length > 0
         ? submissions[0]
         : undefined;
-
-    // Determine if the FileUploader should be enabled.
-    // It should be enabled if:
-    // 1. Deadline has NOT passed OR (Deadline HAS passed AND canSubmitLate is TRUE)
-    // This 'canUpload' variable is no longer needed to be passed to FileUploader.
-    // The FileUploader component should internally use assignment.deadlinePassed and assignment.canSubmitLate
-    // to determine its UI state (e.g., disable upload button).
-    // const canUpload = !assignment.deadlinePassed || (assignment.deadlinePassed && assignment.canSubmitLate);
-
 
     return (
         <div className="min-h-screen flex flex-col">
@@ -618,7 +550,6 @@ const StudentAssignmentView: React.FC = () => {
                             />
 
                             {/* Display Plagiarism Percentage and Category for latest submission */}
-                            {/* Check for a valid number for plagiarismPercent */}
                             {latestSubmission && typeof latestSubmission.plagiarismPercent === 'number' && (
                                 <div className="mb-6 p-4 border rounded-lg shadow-sm bg-white dark:bg-gray-800">
                                     <h3 className="text-lg font-semibold mb-2">Plagiarism Report</h3>
@@ -635,9 +566,9 @@ const StudentAssignmentView: React.FC = () => {
                                 </div>
                             )}
 
-                            {/* Only show TeachersRemark if there's a valid latest submission with a non-empty remark */}
-                            {latestSubmission && latestSubmission.teacherRemark && latestSubmission.teacherRemark.trim() !== "No remarks" && (
-                                <TeachersRemark remark={latestSubmission.teacherRemark} />
+                            {/* Only show TeachersRemark if there's a valid latest submission */}
+                            {latestSubmission && (
+                                <TeachersRemark remark={latestSubmission.teacherRemark || "No remarks"} />
                             )}
 
                             {/* Only show ExamResult if it's an Exam and there's a valid latest submission with a score */}
@@ -654,7 +585,6 @@ const StudentAssignmentView: React.FC = () => {
                                 selectedFile={selectedFile}
                                 isUploading={isUploading}
                                 submissionMessage={assignment.message}
-                                // Removed canUpload prop as it should be handled internally by FileUploader
                             />
 
                             {/* Conditionally render PreviousSubmissions ONLY if there are valid, filtered submissions */}
@@ -662,8 +592,7 @@ const StudentAssignmentView: React.FC = () => {
                                 <PreviousSubmissions
                                     submissions={filteredAndMappedSubmissions}
                                     assignmentType={assignment.type}
-                                    onDownloadSubmission={handleDownloadSubmission}
-                                    getPlagiarismCategory={getPlagiarismCategory} // Pass the helper function
+                                    // onDownloadSubmission is removed as per your request
                                 />
                             )}
                         </div>
@@ -671,10 +600,9 @@ const StudentAssignmentView: React.FC = () => {
                         <div>
                             <SubmissionStatusSidebar
                                 assignment={assignmentDetailsProps}
-                                submissions={filteredAndMappedSubmissions} // Pass the mapped submissions
+                                submissions={filteredAndMappedSubmissions}
                                 submissionGuidelines={assignment.submissionGuidelines}
                                 message={assignment.message}
-                                // Removed latestSubmission prop as it's calculated internally
                             />
                         </div>
                     </div>

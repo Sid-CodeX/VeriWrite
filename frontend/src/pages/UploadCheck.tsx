@@ -480,10 +480,9 @@ const UploadCheck = () => {
           </div>
         </div>
       </main>
-
       <Footer />
     </div>
   );
-};
+}; 
 
 export default UploadCheck;
