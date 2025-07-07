@@ -73,6 +73,11 @@ process.on("SIGINT", async () => {
     process.exit(0);
 });
 
+// Health Check for Render
+app.get("/healthz", (req, res) => {
+  res.status(200).json({ status: "ok", message: "VeriWrite backend healthy" });
+});
+
 // Start Database Connection
 connectDB();
 
