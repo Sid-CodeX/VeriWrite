@@ -66,7 +66,7 @@ const Footer = () => {
             <ul className="space-y-3 text-sm">
               <li className="flex items-start space-x-3">
                 <Mail size={18} className="text-muted-foreground mt-0.5" />
-                <span className="text-muted-foreground">22cs362@mgits.ac</span>
+                <span className="text-muted-foreground">veriwrite@gmail.com</span>
               </li>
               <li className="flex items-start space-x-3">
                 <Phone size={18} className="text-muted-foreground mt-0.5" />
@@ -75,7 +75,7 @@ const Footer = () => {
               <li className="flex items-start space-x-3">
                 <MapPin size={18} className="text-muted-foreground mt-0.5" />
                 <span className="text-muted-foreground">
-                  VeriWrite, MGITS<br />
+                  VeriWrite, MITS<br />
                   Varikoli P.O, Puthencruz<br />
                   682308, India
                 </span>

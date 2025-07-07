@@ -198,7 +198,7 @@ const Contact = () => {
                       <h3 className="font-medium">Email</h3>
                       <p className="text-muted-foreground mt-1">
                         <a href="mailto:22cs362@mgits.ac" className="hover:text-veri">
-                          22cs362@mgits.ac
+                          veriwrite@gmail.com
                         </a>
                       </p>
                     </div>
@@ -221,7 +221,7 @@ const Contact = () => {
                     <div>
                       <h3 className="font-medium">Address</h3>
                       <p className="text-muted-foreground mt-1">
-                        VeriWrite, Muthoot Institute of Technology and Science<br />
+                        VeriWrite, MITS<br />
                         Varikoli P.O, Puthencruz - 682308<br />
                         India
                       </p>
