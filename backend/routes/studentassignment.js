@@ -187,104 +187,127 @@ router.get("/download-question/:assignmentId", authenticate, requireStudent, asy
 });
 
 // POST /studentassignment/:assignmentId/submit
-router.post("/:assignmentId/submit", authenticate, requireStudent, upload.single("file"), async (req, res) => {
+router.post(
+  "/:assignmentId/submit",
+  authenticate,
+  requireStudent,
+  upload.single("file"),
+  async (req, res) => {
     const { assignmentId } = req.params;
     const studentId = req.userId;
 
-    if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+    if (!req.file) {
+      return res.status(400).json({ error: "No file uploaded" });
+    }
 
     const file = req.file;
     const filePath = file.path;
     const fileExt = path.extname(file.originalname).toLowerCase();
 
-    // Validate file extension and MIME type
+    // Allow only specific file types
     const allowedExtensions = [".pdf", ".docx", ".doc", ".jpg", ".jpeg", ".png"];
     const allowedMimeTypes = [
-        "application/pdf",
-        "application/msword", // .doc
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document", // .docx
-        "image/jpeg",
-        "image/png"
+      "application/pdf",
+      "application/msword",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "image/jpeg",
+      "image/png",
     ];
 
     if (!allowedExtensions.includes(fileExt) || !allowedMimeTypes.includes(file.mimetype)) {
-        // Delete temp file before responding with error
-        try { await fs.unlink(filePath); } catch (err) { }
-        return res.status(400).json({ error: `Unsupported file type: ${file.originalname}` });
+      try {
+        await fs.unlink(filePath);
+      } catch (err) {
+        console.error("Failed to delete invalid file:", err);
+      }
+      return res.status(400).json({ error: `Unsupported file type: ${file.originalname}` });
     }
 
     let extractedText = "";
 
     try {
-        // 1. Extract text using OCR
-        if (fileExt === ".pdf") {
-            const pdfData = await pdfParse(await fs.readFile(filePath));
-            extractedText = pdfData.text;
-        } else if ([".doc", ".docx"].includes(fileExt)) {
-            const docData = await mammoth.extractRawText({ path: filePath });
-            extractedText = docData.value;
-        } else if ([".png", ".jpg", ".jpeg"].includes(fileExt)) {
-            extractedText = await extractTextFromImage(filePath);
-        } else {
-            return res.status(400).json({ error: `Unsupported file format: ${file.originalname}` });
-        }
-
-        if (!extractedText.trim()) {
-            return res.status(400).json({ error: "No text extracted from the file" });
-        }
-
-        const wordCount = (extractedText.match(/\b\w+\b/g) || []).length;
-        // Generate MinHash Signature
-        const minHashSignature = generateMinHashSignature(extractedText); // Uses default k and numPermutations
-
-        // Update submission in Assignment schema
-        const assignment = await Assignment.findById(assignmentId);
-        if (!assignment) return res.status(404).json({ error: "Assignment not found" });
-
-        const submission = assignment.submissions.find(sub =>
-            sub.studentId.toString() === studentId.toString()
-        );
-
-        if (!submission) {
-            return res.status(404).json({ error: "You are not enrolled in this assignment or no submission record found" });
-        }
-
-        const now = new Date();
-        const deadline = new Date(assignment.deadline);
-        const deadlinePassed = now > deadline; // to check if deadline passed
-
-        // If deadline passed AND late submissions are NOT allowed
-        if (deadlinePassed && !assignment.canSubmitLate) {
-            return res.status(403).json({ error: "Deadline has passed and late submissions are not allowed." });
-        }
-
-        // It's late if the deadline passed, regardless of 'canSubmitLate'
-        const isThisSubmissionLate = deadlinePassed;
-
-        // Save submission info
-        submission.submitted = true;
-        submission.submittedAt = now; 
-        submission.fileName = file.originalname;
-        submission.fileSize = file.size;
-        submission.extractedText = extractedText;
-        submission.wordCount = wordCount;
-        submission.minHashSignature = minHashSignature;
-        submission.late = isThisSubmissionLate; 
-
-        await assignment.save();
-
-        res.status(200).json({ message: "Submission successful" });
-    } catch (error) {
-        console.error("Submission error:", error);
-        res.status(500).json({ error: "Internal server error" });
-    } finally {
-        // Clean up temp file
+      // Extract text based on file type
+      if (fileExt === ".pdf") {
         try {
-            await fs.unlink(filePath);
+          const pdfData = await pdfParse(await fs.readFile(filePath));
+          extractedText = pdfData.text;
         } catch (err) {
-            console.error(`Failed to delete temp file: ${filePath}`, err);
+          console.warn("pdf-parse failed, falling back to OCR:", err.message);
+          extractedText = await extractTextFromImage(filePath);
         }
+
+        // Fallback if text is too short
+        if (!extractedText.trim() || extractedText.length < 50) {
+          console.log("PDF text is too short, retrying with OCR...");
+          extractedText = await extractTextFromImage(filePath);
+        }
+      } else if ([".doc", ".docx"].includes(fileExt)) {
+        const docData = await mammoth.extractRawText({ path: filePath });
+        extractedText = docData.value;
+      } else if ([".jpg", ".jpeg", ".png"].includes(fileExt)) {
+        extractedText = await extractTextFromImage(filePath);
+      } else {
+        return res.status(400).json({ error: `Unsupported file format: ${file.originalname}` });
+      }
+
+      // Final validation of extracted text
+      if (!extractedText.trim()) {
+        return res.status(400).json({ error: "No readable text could be extracted from the file." });
+      }
+
+      // Calculate word count and minhash signature
+      const wordCount = (extractedText.match(/\b\w+\b/g) || []).length;
+      const minHashSignature = generateMinHashSignature(extractedText);
+
+      // Fetch assignment and validate submission record
+      const assignment = await Assignment.findById(assignmentId);
+      if (!assignment) return res.status(404).json({ error: "Assignment not found" });
+
+      const submission = assignment.submissions.find(
+        (sub) => sub.studentId.toString() === studentId.toString()
+      );
+
+      if (!submission) {
+        return res.status(404).json({ error: "You are not enrolled in this assignment" });
+      }
+
+      const now = new Date();
+      const deadline = new Date(assignment.deadline);
+      const isLate = now > deadline;
+
+      if (isLate && !assignment.canSubmitLate) {
+        try {
+          await fs.unlink(filePath);
+        } catch (err) {
+          console.error("Cleanup error after deadline fail:", err);
+        }
+        return res.status(403).json({ error: "Deadline has passed and late submissions are not allowed." });
+      }
+
+      // Update submission record
+      submission.submitted = true;
+      submission.submittedAt = now;
+      submission.fileName = file.originalname;
+      submission.fileSize = file.size;
+      submission.extractedText = extractedText;
+      submission.wordCount = wordCount;
+      submission.minHashSignature = minHashSignature;
+      submission.late = isLate;
+
+      await assignment.save();
+
+      res.status(200).json({ message: "Submission successful" });
+    } catch (error) {
+      console.error("Submission error:", error);
+      try {
+        await fs.unlink(filePath);
+      } catch (err) {
+        console.error("File cleanup failed during error handling:", err);
+      }
+      res.status(500).json({ error: "Internal server error" });
     }
-});
+  }
+);
+
 
 module.exports = router;
