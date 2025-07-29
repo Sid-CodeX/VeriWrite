@@ -46,7 +46,7 @@
 
 Experience VeriWrite live and see its core functionalities in action!
 
-🔗 **Live Demo:** [**INSERT YOUR LIVE WEBSITE URL HERE**]
+🔗 **Live Demo:** [VeriWrite](https://veriwrite.vercel.app/)
 
 ---
 
