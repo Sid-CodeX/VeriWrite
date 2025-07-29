@@ -4,30 +4,6 @@
 
 ---
 
-## 🚀 Live Demo & Visual Showcase
-
-Experience VeriWrite live and see its core functionalities in action!
-
-🔗 **Live Demo:** [**https://veriwrite.vercel.app/**]
-
----
-
-### Key User Interfaces:
-
-#### Online Plagiarism Check Interface
-![Online Plagiarism Check](assets/online_check.jpeg)
-*A clean interface for uploading documents and initiating plagiarism checks against online sources.*
-
-#### How It Works - Workflow Overview
-![How It Works](assets/landing.png)
-*A visual representation of VeriWrite's streamlined process: Upload, Analyze, Review.*
-
-#### Document Upload & Analysis View
-![Document Upload & Analysis](assets/upload_and_check.jpeg)
-*Showcasing the drag-and-drop functionality and immediate feedback on file processing.*
-
----
-
 ## ✨ Core Features & Innovations
 
 * **Comprehensive Document Input:**
@@ -53,16 +29,45 @@ Experience VeriWrite live and see its core functionalities in action!
 
 ## 🖥️ Tech Stack
 
-| Layer          | Technologies Used                                                                                                                                                                                      |
-| :------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Frontend** | React.js, Tailwind CSS (for modern UI/UX and custom animations), HTML/CSS (UI components)                                                                                                                |
-| **Backend** | Node.js, Express.js (RESTful API development)                                                                                                                                                           |
-| **Database** | MongoDB (via Mongoose ORM)                                                                                                                                                                             |
-| **Algorithms** | MinHash, Locality Sensitive Hashing (LSH), Jaccard-Overlap, N-grams/Shingles                                                                                                                           |
-| **APIs/Services** | Microsoft Azure OCR API, SERP API                                                                                                                                                                      |
-| **Authentication** | JSON Web Tokens (JWT), Google OAuth 2.0                                                                                                                                                                |
-| **File Handling** | Multer, PDF-Parse, Mammoth.js, Node's `fs` module                                                                                                                                                      |
-| **Deployment** | Vercel (for Frontend), Render (for Backend)                                                                                                                                                            |
+| Layer | Technologies Used |
+| :---------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Frontend** | React.js, Tailwind CSS (for modern UI/UX and custom animations), HTML/CSS (UI components) |
+| **Backend** | Node.js, Express.js (RESTful API development) |
+| **Database** | MongoDB (via Mongoose ORM) |
+| **Algorithms** | MinHash, Locality Sensitive Hashing (LSH), Jaccard-Overlap, N-grams/Shingles |
+| **APIs/Services** | Microsoft Azure OCR API, SERP API |
+| **Authentication** | JSON Web Tokens (JWT), Google OAuth 2.0 |
+| **File Handling** | Multer, PDF-Parse, Mammoth.js, Node's `fs` module |
+| **Deployment** | Vercel (for Frontend), Render (for Backend) |
+
+---
+
+## 🚀 Live Demo & Visual Showcase
+
+Experience VeriWrite live and see its core functionalities in action!
+
+🔗 **Live Demo:** [**INSERT YOUR LIVE WEBSITE URL HERE**]
+
+---
+
+### Key User Interfaces:
+
+#### Teacher/Student Dashboard
+![Dashboard Screenshot](assets/dashboard.jpeg)
+*An overview of the intuitive dashboard for both teachers and students, providing quick access to courses and assignments.*
+
+#### Assignment View & Submission
+![Assignment Submission Screenshot](assets/assignment.jpeg)
+*A look at how assignments are presented and the streamlined process for student submissions.*
+
+#### Detailed Plagiarism Report
+![Plagiarism Report Screenshot](assets/plagreport.jpeg)
+*An example of the comprehensive plagiarism report, highlighting matched sections and similarity scores.*
+
+
+#### Online Plagiarism Check Interface
+![Online Plagiarism Check](assets/online_check.jpeg)
+*A clean interface for uploading documents and initiating plagiarism checks against online sources.*
 
 ---
 
@@ -72,18 +77,18 @@ To get VeriWrite up and running on your local machine, follow these steps:
 
 ```bash
 # 1. Clone the repository
-git clone [https://github.com/yourusername/veriwrite.git](https://github.com/yourusername/veriwrite.git)
-cd veriwrite
+git clone https://github.com/Sid-CodeX/VeriWrite.git
+cd VeriWrite
 
 # 2. Install Frontend Dependencies & Start
 cd frontend
-npm install # or yarn install
-npm start   # or yarn start
+npm install 
+npm run dev   
 
 # 3. Install Backend Dependencies & Start
 cd ../backend
-npm install # or yarn install
-npm run dev # or npm start (if your package.json uses 'start' for dev)
+npm install 
+npm run dev 
 ````
 
 🔑 **Environment Variables (`.env` files):**
@@ -124,10 +129,10 @@ Ensure you create `.env` files in both your `frontend` and `backend` directories
 
 ## 👥 Team VeriWrite
 
-  * Sidharth P (https://github.com/Sid-CodeX)
-  * Rahul Koshy Manoj (https://github.com/RAHULKOSHY)
-  * Mariya Jose (https://github.com/maria-jose-2004)
-  * Archana Mukundan (https://github.com/ArchanaMukundhan)
+  * [Sidharth P](https://github.com/Sid-CodeX)
+  * [Rahul Koshy Manoj](https://github.com/RAHULKOSHY)
+  * [Mariya Jose](https://github.com/maria-jose-2004)
+  * [Archana Mukundan](https://github.com/ArchanaMukundhan)
 
 Proudly developed as part of a 6th-semester Mini Project at Muthoot Institute of Technology and Science (MITS), under the esteemed guidance of Dr. Sreenu G, CSE Department.
 
@@ -152,5 +157,3 @@ Have feedback or questions? Reach out via [GitHub Issues](https://github.com/sid
 -----
 
 Engineered with precision and passion by **Team VeriWrite**
-
-```
