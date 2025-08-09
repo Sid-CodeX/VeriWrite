@@ -1,10 +1,10 @@
-# ✍️ VeriWrite — Intelligent Plagiarism & Originality Detection System
+# VeriWrite — Intelligent Plagiarism & Originality Detection System
 
 **VeriWrite** is an innovative, full-stack web-based platform engineered to provide a robust solution for detecting plagiarism and ensuring content originality. While initially focused on academic submissions, its core capabilities extend to general document verification. It leverages a sophisticated blend of text extraction, advanced similarity detection algorithms, and real-time web content comparison to generate insightful, detailed plagiarism reports. VeriWrite aims to empower educators and content creators, preserve academic integrity, and streamline the evaluation process.
 
 ---
 
-## ✨ Core Features & Innovations
+## Core Features & Innovations
 
 * **Comprehensive Document Input:**
     * Supports multi-format uploads including **PDFs, Word Documents (DOCX/DOC), and various image files (JPG, JPEG, PNG)**.
@@ -27,7 +27,7 @@
 
 ---
 
-## 🖥️ Tech Stack
+## Tech Stack
 
 | Layer | Technologies Used |
 | :---------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -42,7 +42,7 @@
 
 ---
 
-## 🚀 Live Demo & Visual Showcase
+## Live Demo & Visual Showcase
 
 Experience VeriWrite live and see its core functionalities in action!
 
@@ -102,7 +102,7 @@ Ensure you create `.env` files in both your `frontend` and `backend` directories
 
 -----
 
-## 🧪 How It Works (Core Plagiarism Flow)
+## How It Works (Core Plagiarism Flow)
 
 1.  **Student Upload:** A student uploads an assignment (PDF, DOCX, image).
 2.  **Text Extraction:**
@@ -118,7 +118,7 @@ Ensure you create `.env` files in both your `frontend` and `backend` directories
 
 -----
 
-## 📌 Future Improvements
+## Future Improvements
 
   * **Automated Assignment/Exam Evaluation:** Integrate AI/ML models for automatic grading of exams or assignments based on teacher's model answers, extending beyond just plagiarism detection.
   * **Semantic Plagiarism Detection:** Implement advanced NLP techniques (e.g., using **BERT embeddings**) to detect conceptual or rephrased plagiarism, rather than just exact string matches.
@@ -127,7 +127,7 @@ Ensure you create `.env` files in both your `frontend` and `backend` directories
 
 -----
 
-## 👥 Team VeriWrite
+## Team VeriWrite
 
   * [Sidharth P](https://github.com/Sid-CodeX)
   * [Rahul Koshy Manoj](https://github.com/RAHULKOSHY)
@@ -138,22 +138,23 @@ Proudly developed as part of a 6th-semester Mini Project at Muthoot Institute of
 
 -----
 
-## 📄 License
+## License
 
 This project is licensed under the [MIT License](https://www.google.com/search?q=LICENSE).
 
 -----
 
-## 🤝 Contributing
+## Contributing
 
 We welcome contributions\! Feel free to fork this repository, suggest enhancements via issues, or submit pull requests. For major changes, please open an issue first to discuss what you would like to change.
 
 -----
 
-## 📬 Contact Us
+## Contact Us
 
 Have feedback or questions? Reach out via [GitHub Issues](https://github.com/sidharthp-2004/veriwrite/issues) or connect with any team member on LinkedIn.
 
 -----
 
 Engineered with precision and passion by **Team VeriWrite**
+
