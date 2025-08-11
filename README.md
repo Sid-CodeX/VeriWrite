@@ -22,7 +22,7 @@
     * Teachers can **create assignments and exams, set deadlines, and track submissions**.
     * Students can **upload their assignments**, with late submission handling.
     * All submissions are seamlessly mapped to specific classes and user IDs.
-* **Secure Authentication:** Robust user authentication system supporting both **Email/Password** and **Google OAuth**.
+* **Secure Authentication:** Robust user authentication system supporting both **Email/Password**.
 * **Intuitive User Dashboards:** Dedicated dashboards for both teachers and students, providing organized views of courses, assignments, submissions, and plagiarism results.
 
 ---
@@ -36,7 +36,7 @@
 | **Database** | MongoDB (via Mongoose ORM) |
 | **Algorithms** | MinHash, Locality Sensitive Hashing (LSH), Jaccard-Overlap, N-grams/Shingles |
 | **APIs/Services** | Microsoft Azure OCR API, SERP API |
-| **Authentication** | JSON Web Tokens (JWT), Google OAuth 2.0 |
+| **Authentication** | JSON Web Tokens (JWT) |
 | **File Handling** | Multer, PDF-Parse, Mammoth.js, Node's `fs` module |
 | **Deployment** | Vercel (for Frontend), Render (for Backend) |
 
@@ -157,4 +157,5 @@ Have feedback or questions? Reach out via [GitHub Issues](https://github.com/sid
 -----
 
 Engineered with precision and passion by **Team VeriWrite**
+
 
